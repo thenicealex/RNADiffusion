@@ -23,6 +23,5 @@
     "diffusion_dim": 8,
     "cond_dim": 8,
     "dp_rate": 0.1,
-    "u_conditioner_ckpt": "ufold_train_alldata.pt"
   }
 }

@@ -22,7 +22,6 @@ python train.py --device cuda:0
                 --log_wandb False
                 --epochs 400
                 --eval_every 20
-                --u_conditioner_ckpt ufold_train_alldata.pt
 ```
 
 ## 3. Data

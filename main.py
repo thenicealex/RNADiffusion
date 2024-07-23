@@ -29,9 +29,6 @@ def setup_args():
     parser.add_argument("--cond_dim", type=int, default=1)
     parser.add_argument("--dp_rate", type=float, default=0.0)
     parser.add_argument(
-        "--u_conditioner_ckpt", type=str, default="ufold_train_alldata.pt"
-    )
-    parser.add_argument(
         "--esm_conditioner_ckpt",
         type=str,
         default="RNA-ESM2-trans-2a100-mappro-KDNY-epoch_06-valid_F1_0.564.ckpt",
@@ -89,7 +86,6 @@ if __name__ == "__main__":
         cond_dim=args.cond_dim,
         diffusion_steps=args.diffusion_steps,
         dp_rate=args.dp_rate,
-        u_ckpt=args.u_conditioner_ckpt,
         esm_ckpt=args.esm_conditioner_ckpt,
     )
     alphabet = model.get_alphabet()

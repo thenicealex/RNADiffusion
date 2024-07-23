@@ -36,7 +36,6 @@ class DiffusionRNA2dPrediction(nn.Module):
         # condition
         self.esm_conditioner = RNAESM2(esm_ckpt=self.esm_ckpt, device="cuda:0")
         self.rna_alphabet = self.esm_conditioner.rna_alphabet
-        self.u_conditioner = self.load_u_conditioner()
 
         self.denoise = SegmentationUnet2DCondition(
             num_classes=self.num_classes,
@@ -51,19 +50,6 @@ class DiffusionRNA2dPrediction(nn.Module):
             self.num_classes, self.diffusion_steps, self.denoise
         )
 
-    def load_u_conditioner(self):
-        u_conditioner = UNet(n_channels=17, n_classes=1)
-        u_conditioner.load_state_dict(
-            torch.load(self.u_ckpt, map_location="cpu")
-        )
-        condition_out = nn.Conv2d(
-            int(32 * CH_FOLD), self.cond_dim, kernel_size=1, stride=1, padding=0
-        )
-        u_conditioner.Conv_1x1 = condition_out
-        u_conditioner.requires_grad_(True)
-        
-        return u_conditioner
-
     def get_alphabet(self):
         return self.rna_alphabet
 
@@ -77,10 +63,9 @@ class DiffusionRNA2dPrediction(nn.Module):
         data_seq_encoding,
     ):
         esm_condition = self.esm_conditioner(data_seq_raw, set_max_len)
-        u_condition = self.u_conditioner(base_info)
 
         loss = self.diffusion(
-            x_0, esm_condition, u_condition, contact_masks, data_seq_encoding
+            x_0, esm_condition, contact_masks, data_seq_encoding
         )
 
         loglik_bpd = -loss.sum() / (math.log(2) * x_0.shape.numel())
@@ -97,12 +82,10 @@ class DiffusionRNA2dPrediction(nn.Module):
         seq_encoding,
     ):
         esm_condition = self.esm_conditioner(data_seq_raw, set_max_len)
-        u_condition = self.u_conditioner(base_info)
 
         pred_x_0, model_prob = self.diffusion.sample(
             num_samples,
             esm_condition,
-            u_condition,
             contact_masks,
             set_max_len,
             seq_encoding,
@@ -121,13 +104,11 @@ class DiffusionRNA2dPrediction(nn.Module):
         seq_encoding,
     ):
         esm_condition = self.esm_conditioner(data_seq_raw, set_max_len)
-        u_condition = self.u_conditioner(base_info)
 
         pred_x_0_chain, model_prob_chain, pred_x_0, model_prob = (
             self.diffusion.sample_chain(
                 num_samples,
                 esm_condition,
-                u_condition,
                 contact_masks,
                 set_max_len,
                 seq_encoding,

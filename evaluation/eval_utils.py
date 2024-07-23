@@ -128,7 +128,6 @@ def get_model_test(args):
         cond_dim=args.cond_dim,
         diffusion_steps=args.diffusion_steps,
         dp_rate=args.dp_rate,
-        u_ckpt=args.u_conditioner_ckpt
     )
 
     alphabet = model.get_alphabet()

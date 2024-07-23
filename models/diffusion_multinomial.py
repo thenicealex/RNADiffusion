@@ -174,11 +174,11 @@ class MultinomialDiffusion(nn.Module):
         return log_EV_xtmin_given_xt_given_xstart
 
     # x_0_hat
-    def predict_x_0(self, log_x_t, t, esm_condition, u_condition, seq_encoding):
+    def predict_x_0(self, log_x_t, t, esm_condition, seq_encoding):
         # convert xt to index
         x_t = log_onehot_to_index(log_x_t)
 
-        out = self._denoise_fn(t, x_t, esm_condition, u_condition, seq_encoding)
+        out = self._denoise_fn(t, x_t, esm_condition, seq_encoding)
 
         assert out.size(0) == x_t.size(0)
         assert out.size(1) == self.K
@@ -189,8 +189,8 @@ class MultinomialDiffusion(nn.Module):
         return log_pred
 
     # p(xt-1|xt)
-    def p_pred(self, log_x_t, t, esm_condition, u_condition, seq_encoding):
-        log_x_0_hat = self.predict_x_0(log_x_t, t, esm_condition, u_condition, seq_encoding)
+    def p_pred(self, log_x_t, t, esm_condition, seq_encoding):
+        log_x_0_hat = self.predict_x_0(log_x_t, t, esm_condition, seq_encoding)
         log_probs = self.q_posterior(log_x_t, log_x_0_hat, t)
         return log_probs
 
@@ -202,8 +202,8 @@ class MultinomialDiffusion(nn.Module):
 
     # p(xt-1|xt) -> xt-1
     @torch.no_grad()
-    def p_sample(self, log_x_t, t, esm_condition, u_condition, seq_encoding):
-        log_probs = self.p_pred(log_x_t, t, esm_condition, u_condition, seq_encoding)
+    def p_sample(self, log_x_t, t, esm_condition, seq_encoding):
+        log_probs = self.p_pred(log_x_t, t, esm_condition, seq_encoding)
         x_t_minus_1 = self.log_sample_categorical(log_probs)
         return x_t_minus_1, log_probs
 
@@ -219,14 +219,13 @@ class MultinomialDiffusion(nn.Module):
         return sum_except_batch(kl_prior)
 
     # compute L_{t-1} and L_0
-    def compute_Lt(self, log_x_0, log_x_t, esm_condition, u_condition, seq_encoding, t, contact_masks, detach_mean=False):
+    def compute_Lt(self, log_x_0, log_x_t, esm_condition, seq_encoding, t, detach_mean=False):
         log_true_prob = self.q_posterior(log_x_t=log_x_t, log_x_0=log_x_0, t=t)
 
         log_model_prob = self.p_pred(
             log_x_t=log_x_t,
             t=t,
             esm_condition=esm_condition,
-            u_condition=u_condition * contact_masks,
             seq_encoding=seq_encoding
         )
 
@@ -271,7 +270,7 @@ class MultinomialDiffusion(nn.Module):
             raise ValueError('Unknown method: {}'.format(method))
 
 
-    def forward(self, x_0, esm_condition, u_condition, contact_masks, seq_encoding):
+    def forward(self, x_0, esm_condition, seq_encoding):
         batch, device = x_0.size(0), x_0.device
 
         t, pt = self.sample_time(batch, device, 'importance')
@@ -281,10 +280,8 @@ class MultinomialDiffusion(nn.Module):
             log_x_0=log_x_0,
             log_x_t=self.q_sample(log_x_0, t),
             esm_condition=esm_condition,
-            u_condition=u_condition,
             seq_encoding=seq_encoding,
             t=t,
-            contact_masks=contact_masks
         )
 
         Lt2 = kl.pow(2)
@@ -301,7 +298,7 @@ class MultinomialDiffusion(nn.Module):
         return -vb_loss
 
     @torch.no_grad()
-    def sample(self, num_samples, esm_condition, u_condition, contact_masks, set_max_len, seq_encoding):
+    def sample(self, num_samples, esm_condition, contact_masks, set_max_len, seq_encoding):
         b = num_samples
         data_shape = (1, int(set_max_len), int(set_max_len))
 
@@ -313,14 +310,13 @@ class MultinomialDiffusion(nn.Module):
             log_z, model_log_prob = self.p_sample(log_x_t=log_z,
                                                   t=t,
                                                   esm_condition=esm_condition,
-                                                  u_condition=u_condition * contact_masks,
                                                   seq_encoding=seq_encoding)
 
         model_prob = torch.exp(model_log_prob)[:, 1, :, :, :] * contact_masks
         return log_onehot_to_index(log_z) * contact_masks, model_prob
 
     @torch.no_grad()
-    def sample_chain(self, num_samples, esm_condition, u_condition, contact_masks, set_max_len, seq_encoding):
+    def sample_chain(self, num_samples, esm_condition, contact_masks, set_max_len, seq_encoding):
         b = num_samples
         data_shape = (1, int(set_max_len), int(set_max_len))
 
@@ -336,7 +332,6 @@ class MultinomialDiffusion(nn.Module):
             log_z, model_log_prob = self.p_sample(log_x_t=log_z,
                                                   t=t,
                                                   esm_condition=esm_condition,
-                                                  u_condition=u_condition * contact_masks,
                                                   seq_encoding=seq_encoding)
 
             z_probs[i] = torch.exp(model_log_prob)[:, 1, :, :, :] * contact_masks
