@@ -1,0 +1,6 @@
+.idea/
+.vscode/
+*.pt
+*.pth
+*.csv
+*.pyc
