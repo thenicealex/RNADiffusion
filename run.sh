@@ -1,6 +1,6 @@
-python main.py  --device cuda:0 \
+python main.py  --device cuda:3 \
                 --diffusion_dim 8 \
-                --diffusion_steps 20 \
+                --diffusion_steps 50 \
                 --cond_dim 8 \
                 --dataset bpRNAnew \
                 --batch_size 1 \
@@ -9,6 +9,6 @@ python main.py  --device cuda:0 \
                 --warmup 5 \
                 --seed 2024 \
                 --log_wandb False \
-                --epochs 200 \
+                --epochs 5 \
                 --eval_every 5 \
                 --esm_conditioner_ckpt /home/fkli/RNAm/RNA-ESM2-trans-2a100-mappro-KDNY-epoch_06-valid_F1_0.564.ckpt \

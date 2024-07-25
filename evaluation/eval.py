@@ -21,11 +21,10 @@ def evaluation(args, eval_model, dataloader):
         test_no_train = list()
         total_name_list = list()
         total_length_list = list()
-        for _, (contact, base_info, data_seq_raw, data_length, data_name, set_max_len, data_seq_encoding) in enumerate(dataloader):
+        for _, (contact, data_seq_raw, data_length, data_name, set_max_len, data_seq_encoding) in enumerate(dataloader):
             total_name_list += [item for item in data_name]
             total_length_list += [item.item() for item in data_length]
 
-            base_info = base_info.to(device)
             matrix_rep = torch.zeros_like(contact)
             data_length = data_length.to(device)
             data_seq_raw = data_seq_raw.to(device)
@@ -41,7 +40,7 @@ def evaluation(args, eval_model, dataloader):
             for seed_ind in select_seeds:
                 torch.manual_seed(seed_ind)
 
-                pred_x0, _ = eval_model.sample(batch_size, base_info, data_seq_raw, set_max_len, contact_masks, data_seq_encoding)
+                pred_x0, _ = eval_model.sample(batch_size, data_seq_raw, set_max_len, contact_masks, data_seq_encoding)
                 pred_x0_copy_dict[seed_ind] = pred_x0
 
             for i in tqdm(range(pred_x0.shape[0]), desc=f'vote for the most common structure', total=pred_x0.shape[0]):

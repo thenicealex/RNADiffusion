@@ -13,12 +13,11 @@ def load_data(path):
     return load_data
 
 if __name__=="__main__":
-    data_path = "/home/fkli/Projects/RNADiffFold/datasets"
-    train_data_path = "/home/fkli/Projects/RNADiffFold/datasets/train"
-    test_data_path = "/home/fkli/RNAdata/RNAcmap2/binning/test"
-    val_data_path = "/home/fkli/Projects/RNADiffFold/datasets/val"
-    target_data_path = "/home/fkli/RNAdata/RNAcmap2/batching"
-    path_list = [test_data_path]
+    train_data_path = "/home/fkli/RNAdata/bpRNA_lasted/binning/train"
+    test_data_path = "/home/fkli/RNAdata/bpRNA_lasted/binning/test"
+    val_data_path = "/home/fkli/RNAdata/bpRNA_lasted/binning/val"
+    target_data_path = "/home/fkli/RNAdata/bpRNA_lasted/batching"
+    path_list = [train_data_path,val_data_path, test_data_path]
 
     for dpath in path_list:
         for k in tqdm(range(0, len(os.listdir(dpath)))):

@@ -18,17 +18,16 @@ class Trainer(DiffusionExperiment):
         loss_sum = 0.0
         loss_count = 0
         device = self.args.device
-        for _, (contact, base_info, data_seq_raw, data_length, _, set_max_len, data_seq_encoding) in enumerate(self.train_loader):
+        for _, (set_max_len, _ , _, contact, data_seq_raw, data_seq_encoding) in enumerate(self.train_loader):
             self.optimizer.zero_grad()
             contact = contact.to(device)
-            base_info = base_info.to(device)
-            matrix_rep = torch.zeros_like(contact)
-            data_length = data_length.to(device)
-            # data_seq_raw = data_seq_raw.to(device)
+            # matrix_rep = torch.zeros_like(contact).squeeze()
+            # data_length = data_length.squeeze().to(device)
+            data_seq_raw = [t[0].replace('Y', 'N') for t in data_seq_raw]
             data_seq_encoding = data_seq_encoding.to(device)
-            contact_masks = contact_map_masks(data_length, matrix_rep).to(device)
+            # contact_masks = contact_map_masks(data_length, matrix_rep).to(device)
 
-            loss = self.model(contact, base_info, data_seq_raw, contact_masks, set_max_len, data_seq_encoding)
+            loss = self.model(contact, data_seq_raw, set_max_len, data_seq_encoding)
             loss.backward()
 
             self.optimizer.step()
@@ -53,17 +52,16 @@ class Trainer(DiffusionExperiment):
             val_no_train = list()
             mcc_no_train = list()
 
-            for _, (contact, base_info, data_seq_raw, data_length, _, set_max_len, data_seq_encoding) in enumerate(self.val_loader):
-                base_info = base_info.to(device)
+            for _, (set_max_len, _ , data_length, contact, data_seq_raw, data_seq_encoding) in enumerate(self.val_loader):
                 matrix_rep = torch.zeros_like(contact)
                 data_length = data_length.to(device)
-                # data_seq_raw = data_seq_raw.to(device)
+                data_seq_raw = [t[0].replace('Y', 'N') for t in data_seq_raw]
                 data_seq_encoding = data_seq_encoding.to(device)
                 contact_masks = contact_map_masks(data_length, matrix_rep).to(device)
 
                 # calculate contact loss
                 batch_size = contact.shape[0]
-                pred_x0, _ = self.model.sample(batch_size, base_info, data_seq_raw, set_max_len, contact_masks, data_seq_encoding)
+                pred_x0, _ = self.model.sample(batch_size, data_seq_raw, set_max_len, contact_masks, data_seq_encoding)
 
                 pred_x0 = pred_x0.cpu().float()
                 val_loss_sum += bce_loss(pred_x0.float(), contact.float()).cpu().item()
@@ -105,21 +103,19 @@ class Trainer(DiffusionExperiment):
             total_name_list = list()
             total_length_list = list()
 
-            for _, (contact, base_info, data_seq_raw, data_length, data_name, set_max_len, data_seq_encoding) in enumerate(
-                    self.test_loader):
+            for _, (set_max_len, data_seq_raw, data_length, contact, data_name, data_seq_encoding) in enumerate(self.test_loader):
                 total_name_list += [item for item in data_name]
                 total_length_list += [item.item() for item in data_length]
 
-                base_info = base_info.to(device)
                 matrix_rep = torch.zeros_like(contact)
                 data_length = data_length.to(device)
-                # data_seq_raw = data_seq_raw.to(device)
+                data_seq_raw = [t[0].replace('Y', 'N') for t in data_seq_raw]
                 data_seq_encoding = data_seq_encoding.to(device)
                 contact_masks = contact_map_masks(data_length, matrix_rep).to(device)
 
                 # calculate contact loss
                 batch_size = contact.shape[0]
-                pred_x0, _ = self.model.sample(batch_size, base_info, data_seq_raw, set_max_len, contact_masks, data_seq_encoding)
+                pred_x0, _ = self.model.sample(batch_size, data_seq_raw, set_max_len, contact_masks, data_seq_encoding)
 
                 pred_x0 = pred_x0.cpu().float()
 

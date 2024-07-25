@@ -52,6 +52,8 @@ def encoding2seq(arr):
 
 
 def contact_map_masks(data_lens, matrix_rep):
+    data_lens = data_lens.squeeze()
+    matrix_rep = matrix_rep.squeeze()
     n_seq = len(data_lens)
     assert matrix_rep.shape[0] == n_seq
     for i in range(n_seq):

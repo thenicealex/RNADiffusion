@@ -293,7 +293,7 @@ class SegmentationUnet2DCondition(nn.Module):
 
         self.fm_cond = nn.Sequential(nn.Linear(16, 48), Mish(), nn.Linear(48, 8))
 
-        self.x_mlp = nn.Sequential(nn.Linear(48, 64), Mish(), nn.Linear(64, self.dim))
+        self.x_mlp = nn.Sequential(nn.Linear(40, 64), Mish(), nn.Linear(64, self.dim))
 
         self.downs = nn.ModuleList([])
         self.ups = nn.ModuleList([])
@@ -382,9 +382,14 @@ class SegmentationUnet2DCondition(nn.Module):
         if len(x.size()) == 3:
             x = x.unsqueeze(1)
 
+        if len(x.size()) == 5:
+            x = x.squeeze(0)
+
         B, C, H, W = x.size()
 
         x = self.embedding(x)
+        if len(x.size()) == 6:
+            x = x.squeeze(0)
         assert x.shape == (B, C, H, W, self.dim)
         x = x.permute(0, 1, 4, 2, 3)
         assert x.shape == (B, C, self.dim, H, W)
@@ -405,7 +410,8 @@ class SegmentationUnet2DCondition(nn.Module):
             ],
             dim=1,
         )
-        seq_encoding = seq_encoding.permute(0, 2, 1)
+        # print("\n", seq_encoding.size(), "\n")
+        seq_encoding = seq_encoding.squeeze(0).permute(0, 2, 1)
         seq_out_cat = torch.cat(
             [
                 seq_encoding.unsqueeze(-1).repeat(1, 1, 1, cond_L),
@@ -455,7 +461,7 @@ class SegmentationUnet2DCondition(nn.Module):
 
         # convert xt to onehot
         x = self.res_conv(x, t, cond)
-        final = self.out_conv(x).view(B, self.num_classes, *x_shape)
+        final = self.out_conv(x).view(-1, self.num_classes, *x_shape)
         # make output matrix symmetric
         return torch.transpose(final, -1, -2) * final
 

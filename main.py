@@ -4,8 +4,7 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import MultiStepLR
 from os.path import join
 import argparse
-from data.data_generator import RNADataset, diff_collate_fn, get_data_id
-from functools import partial
+from data.data_generator import RNADataset, get_data_id
 
 from models.model import DiffusionRNA2dPrediction, get_model_id
 from optim.scheduler import LinearWarmupScheduler, get_optim_id
@@ -16,7 +15,7 @@ from models.rna_model.config import TransformerConfig, OptimizerConfig, Config, 
 seed_everything(42)
 
 MODEL_PATH = "/home/fkli/RNAm"
-DATA_PATH = "/home/fkli/Projects/DiffRNA/datasets/temp"
+DATA_PATH = "/home/fkli/RNAdata/bpRNA_lasted/batching"
 
 
 def setup_args():
@@ -87,22 +86,22 @@ if __name__ == "__main__":
         diffusion_steps=args.diffusion_steps,
         dp_rate=args.dp_rate,
         esm_ckpt=args.esm_conditioner_ckpt,
+        device=args.device,
     )
     alphabet = model.get_alphabet()
+    model = model.to(args.device)
 
     # data
     data_id = get_data_id(args)
     train = RNADataset([join(DATA_PATH, "train")], upsampling=False)
     val = RNADataset([join(DATA_PATH, "val")])
     test = RNADataset([join(DATA_PATH, "test")])
-    partial_collate_fn = partial(diff_collate_fn)
 
     train_loader = DataLoader(
         train,
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.num_workers,
-        collate_fn=partial_collate_fn,
         pin_memory=args.pin_memory,
         drop_last=True,
     )
@@ -112,7 +111,6 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         shuffle=False,
         num_workers=args.num_workers,
-        collate_fn=partial_collate_fn,
         pin_memory=args.pin_memory,
         drop_last=False,
     )
@@ -122,7 +120,6 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         shuffle=False,
         num_workers=args.num_workers,
-        collate_fn=partial_collate_fn,
         pin_memory=args.pin_memory,
         drop_last=False,
     )
