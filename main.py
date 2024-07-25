@@ -91,6 +91,7 @@ if __name__ == "__main__":
         dp_rate=args.dp_rate,
         u_ckpt=args.u_conditioner_ckpt,
         esm_ckpt=args.esm_conditioner_ckpt,
+        device=args.device,
     )
     alphabet = model.get_alphabet()
 

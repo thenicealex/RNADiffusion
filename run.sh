@@ -1,4 +1,4 @@
-python main.py  --device cuda:0 \
+python main.py  --device cuda:3 \
                 --diffusion_dim 8 \
                 --diffusion_steps 20 \
                 --cond_dim 8 \

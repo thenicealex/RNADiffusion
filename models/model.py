@@ -21,7 +21,7 @@ def get_model_id(args):
 class DiffusionRNA2dPrediction(nn.Module):
 
     def __init__(
-        self, num_classes, diffusion_dim, cond_dim, diffusion_steps, dp_rate, u_ckpt, esm_ckpt
+        self, num_classes, diffusion_dim, cond_dim, diffusion_steps, dp_rate, u_ckpt, esm_ckpt, device
     ):
         super(DiffusionRNA2dPrediction, self).__init__()
 
@@ -32,13 +32,14 @@ class DiffusionRNA2dPrediction(nn.Module):
         self.dp_rate = dp_rate
         self.u_ckpt = u_ckpt
         self.esm_ckpt = esm_ckpt
+        self.device = device
 
         # condition
-        self.esm_conditioner = RNAESM2(esm_ckpt=self.esm_ckpt, device="cuda:0")
+        self.esm_conditioner = RNAESM2(esm_ckpt=self.esm_ckpt, device=self.device)
         self.rna_alphabet = self.esm_conditioner.rna_alphabet
         self.u_conditioner = self.load_u_conditioner()
 
-        self.denoise = SegmentationUnet2DCondition(
+        self.denoise_layer = SegmentationUnet2DCondition(
             num_classes=self.num_classes,
             dim=self.diffusion_dim,
             cond_dim=self.cond_dim,
@@ -48,7 +49,7 @@ class DiffusionRNA2dPrediction(nn.Module):
         )
 
         self.diffusion = MultinomialDiffusion(
-            self.num_classes, self.diffusion_steps, self.denoise
+            self.num_classes, self.diffusion_steps, self.denoise_layer
         )
 
     def load_u_conditioner(self):
