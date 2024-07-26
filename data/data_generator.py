@@ -6,6 +6,7 @@ import numpy as np
 import pickle as cPickle
 from random import shuffle
 from torch.utils.data import Dataset
+from common.data_utils import encode_name, padding, seq_encoding
 
 seq_dict = {
     "A": np.array([1, 0, 0, 0]),
@@ -103,41 +104,31 @@ class RNADataset(Dataset):
             data_seq_encode_pad_array,
         ) = preprocess_data(data, set_max_len)
 
-        contact = torch.tensor(contact_array).unsqueeze(1).long()
-        data_length = torch.tensor(data_length_list).long()
+        contact = torch.tensor(contact_array).long()
+        data_name_list = torch.tensor(np.array(data_name_list))
+        data_length_list = torch.tensor(data_length_list).long()
         data_seq_encode_pad = torch.tensor(data_seq_encode_pad_array).float()
 
         return (
             set_max_len,
             data_name_list,
-            data_length,
+            data_length_list,
             contact,
             data_seq_raw_list,
             data_seq_encode_pad,
         )
 
 
-def padding(data_array, maxlen, axis=0):
-    a, b = data_array.shape
-    if axis == 1:
-        return np.pad(data_array, ((0, maxlen-a), (0, maxlen - b)), "constant")
-    # np.pad(array, ((before_1,after_1),……,(before_n,after_n),module)
-    return np.pad(data_array, ((0, maxlen - a), (0, 0)), "constant")
-
-
-def seq_encoding(string):
-    str_list = list(string)
-    encoding = list(map(lambda x: seq_dict[x.upper()], str_list))
-    # need to stack
-    return np.stack(encoding, axis=0)
-
-
 def preprocess_data(data, set_max_len):
     shuffle(data)
-    contact_list = [padding(item["contact"], set_max_len, 1) for item in data]
-    data_seq_raw_list = [item["seq_raw"] for item in data]
+    contact_list = [padding(item["contact"], set_max_len, axis=1) for item in data]
+    data_seq_raw_list = [item["seq_raw"].replace('Y', 'N') for item in data]
     data_length_list = [item["length"] for item in data]
-    data_name_list = [item["name"] for item in data]
+
+    data_name_len_max = max([len(item["name"]) for item in data])
+    data_name_list = [
+        padding(np.array(encode_name(item["name"])), data_name_len_max) for item in data
+    ]
 
     contact_array = np.stack(contact_list, axis=0)
 

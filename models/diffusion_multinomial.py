@@ -313,7 +313,7 @@ class MultinomialDiffusion(nn.Module):
                                                   seq_encoding=seq_encoding)
 
         model_prob = torch.exp(model_log_prob)[:, 1, :, :, :] * contact_masks
-        return log_onehot_to_index(log_z) * contact_masks, model_prob
+        return log_onehot_to_index(log_z), model_prob
 
     @torch.no_grad()
     def sample_chain(self, num_samples, esm_condition, contact_masks, set_max_len, seq_encoding):

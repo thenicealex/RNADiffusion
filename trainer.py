@@ -8,7 +8,8 @@ from common.experiment import DiffusionExperiment
 from common.data_utils import contact_map_masks
 from common.loss_utils import bce_loss, evaluate_f1_precision_recall
 from common.loss_utils import calculate_auc, calculate_mattews_correlation_coefficient,rna_evaluation
-add_parent_path(level=2)
+from common.data_utils import decode_name
+# add_parent_path(level=2)
 
 
 class Trainer(DiffusionExperiment):
@@ -20,12 +21,9 @@ class Trainer(DiffusionExperiment):
         device = self.args.device
         for _, (set_max_len, _ , _, contact, data_seq_raw, data_seq_encoding) in enumerate(self.train_loader):
             self.optimizer.zero_grad()
-            contact = contact.to(device)
-            # matrix_rep = torch.zeros_like(contact).squeeze()
-            # data_length = data_length.squeeze().to(device)
-            data_seq_raw = [t[0].replace('Y', 'N') for t in data_seq_raw]
-            data_seq_encoding = data_seq_encoding.to(device)
-            # contact_masks = contact_map_masks(data_length, matrix_rep).to(device)
+            set_max_len = set_max_len.to(device)
+            contact = contact.squeeze(0).to(device)
+            data_seq_encoding = data_seq_encoding.squeeze(0).to(device)
 
             loss = self.model(contact, data_seq_raw, set_max_len, data_seq_encoding)
             loss.backward()
@@ -54,17 +52,21 @@ class Trainer(DiffusionExperiment):
 
             for _, (set_max_len, _ , data_length, contact, data_seq_raw, data_seq_encoding) in enumerate(self.val_loader):
                 matrix_rep = torch.zeros_like(contact)
+                contact = contact.squeeze(0)
+                data_seq_encoding = data_seq_encoding.squeeze(0)
+                set_max_len = set_max_len.to(device)
                 data_length = data_length.to(device)
-                data_seq_raw = [t[0].replace('Y', 'N') for t in data_seq_raw]
                 data_seq_encoding = data_seq_encoding.to(device)
                 contact_masks = contact_map_masks(data_length, matrix_rep).to(device)
 
                 # calculate contact loss
-                batch_size = contact.shape[0]
-                pred_x0, _ = self.model.sample(batch_size, data_seq_raw, set_max_len, contact_masks, data_seq_encoding)
+                num_samples = contact.shape[0]
+                pred_x0, _ = self.model.sample(num_samples, data_seq_raw, set_max_len, contact_masks, data_seq_encoding)
 
+                print("\n", pred_x0.shape, contact.shape,"\n")
                 pred_x0 = pred_x0.cpu().float()
-                val_loss_sum += bce_loss(pred_x0.float(), contact.float()).cpu().item()
+                print("\n", pred_x0.shape, contact.shape,"\n")
+                val_loss_sum += bce_loss(pred_x0.float(), contact.unsqueeze(1).float()).cpu().item()
                 loss_count += len(contact)
                 auc_score += calculate_auc(contact.float(), pred_x0)
                 auc_count += 1
@@ -103,13 +105,16 @@ class Trainer(DiffusionExperiment):
             total_name_list = list()
             total_length_list = list()
 
-            for _, (set_max_len, data_seq_raw, data_length, contact, data_name, data_seq_encoding) in enumerate(self.test_loader):
-                total_name_list += [item for item in data_name]
-                total_length_list += [item.item() for item in data_length]
+            for _, (set_max_len, data_name,data_length, contact,data_seq_raw, data_seq_encoding) in enumerate(self.test_loader):
+                data_name = data_name.squeeze(0)
+                contact = contact.squeeze(0)
+                data_seq_encoding = data_seq_encoding.squeeze(0)
+                data_name_list = [list(filter(lambda x: x != -1, item.numpy())) for item in data_name]
+                total_name_list += [decode_name(item) for item in data_name_list]
+                total_length_list += [item for item in data_length]
 
                 matrix_rep = torch.zeros_like(contact)
                 data_length = data_length.to(device)
-                data_seq_raw = [t[0].replace('Y', 'N') for t in data_seq_raw]
                 data_seq_encoding = data_seq_encoding.to(device)
                 contact_masks = contact_map_masks(data_length, matrix_rep).to(device)
 
@@ -125,15 +130,16 @@ class Trainer(DiffusionExperiment):
 
             accuracy, prec, recall, sens, spec, F1, MCC = zip(*test_no_train)
 
-            f1_pre_rec_df = pd.DataFrame({'name': total_name_list,
-                                          'length': total_length_list,
-                                          'accuracy': list(np.array(accuracy)),
-                                          'precision': list(np.array(prec)),
-                                          'recall': list(np.array(recall)),
-                                          'sensitivity': list(np.array(sens)),
-                                          'specificity': list(np.array(spec)),
-                                          'f1': list(np.array(F1)),
-                                          'mcc': list(np.array(MCC))})
+            f1_pre_rec_df = pd.DataFrame({})
+            # f1_pre_rec_df = pd.DataFrame({'name': total_name_list,
+            #                               'length': total_length_list,
+            #                               'accuracy': list(np.array(accuracy)),
+            #                               'precision': list(np.array(prec)),
+            #                               'recall': list(np.array(recall)),
+            #                               'sensitivity': list(np.array(sens)),
+            #                               'specificity': list(np.array(spec)),
+            #                               'f1': list(np.array(F1)),
+            #                               'mcc': list(np.array(MCC))})
 
             accuracy = np.average(np.nan_to_num(np.array(accuracy)))
             precision = np.average(np.nan_to_num(np.array(prec)))
