@@ -378,11 +378,10 @@ class SegmentationUnet2DCondition(nn.Module):
         self.out_conv = nn.Conv2d(dim, out_dim, 1)
 
     def forward(self, time, x, esm_condition, seq_encoding):
-        # x.shape = [B, H, W]
+        # x.shape = [B, C, H, W]
         x_shape = x.shape[1:]
         if len(x.size()) == 3:
             x = x.unsqueeze(1)
-            # x.shape = [B, C, H, W]
 
         B, C, H, W = x.size()
 
@@ -407,7 +406,8 @@ class SegmentationUnet2DCondition(nn.Module):
             ],
             dim=1,
         )
-        seq_encoding = seq_encoding.permute(0, 2, 1)
+        seq_encoding = seq_encoding.squeeze(1).permute(0, 2, 1)
+
         seq_out_cat = torch.cat(
             [
                 seq_encoding.unsqueeze(-1).repeat(1, 1, 1, cond_L),
@@ -416,11 +416,10 @@ class SegmentationUnet2DCondition(nn.Module):
             dim=1,
         )
 
-        # print("\n", x.shape, esm_out_cat.shape, esm_attention_map.shape, seq_out_cat.shape, "\n")
         x = self.x_mlp(
-            torch.cat(
-                [x, esm_out_cat, esm_attention_map, seq_out_cat], dim=1
-            ).permute(0, 2, 3, 1)
+            torch.cat([x, esm_out_cat, esm_attention_map, seq_out_cat], dim=1).permute(
+                0, 2, 3, 1
+            )
         ).permute(0, 3, 1, 2)
 
         t = self.to_time_cond(time)
