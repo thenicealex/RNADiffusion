@@ -6,9 +6,9 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-data_path = "/home/fkli/Projects/RNADiffFold/dataset/dataset.pkl"
+data_path = "/home/fkli/Projects/RNADiffusion/dataset/dataset.pkl"
 
-test_path = "/home/fkli/Projects/RNADiffFold/data/test"
+test_path = "/home/fkli/Projects/RNADiffusion/data/test"
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-# RNADiffFold: Generative RNA Secondary Structure Prediction using DiT
+# RNADiffusion: Generative RNA Secondary Structure Prediction using DiT
 
 ## 1.Please use the .yml file to create your environment
 

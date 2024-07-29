@@ -10,6 +10,6 @@ python main.py  --device cuda:3 \
                 --lr 0.0001 \
                 --warmup 5 \
                 --seed 2024 \
-                --log_home ~/Projects/RNADiffFold \
+                --log_home ~/Projects/RNADiffusion \
                 --log_wandb False \
                 --esm_conditioner_ckpt ~/RNAm/RNA-ESM2-trans-2a100-mappro-KDNY-epoch_06-valid_F1_0.564.ckpt \

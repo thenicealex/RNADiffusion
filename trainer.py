@@ -303,9 +303,9 @@ class DiffusionTrainer(BaseTrainer):
     ):
 
         if args.log_home is None:
-            self.log_base = join(HOME, "logs", "rnadifffold")
+            self.log_base = join(HOME, "logs", "RNADiffusion")
         else:
-            self.log_base = join(args.log_home, "logs", "rnadifffold")
+            self.log_base = join(args.log_home, "logs", "RNADiffusion")
 
         if args.eval_every is None:
             args.eval_every = args.epochs
@@ -315,7 +315,7 @@ class DiffusionTrainer(BaseTrainer):
             args.name = time.strftime("%Y-%m-%d_%H-%M-%S")
 
         if args.project is None:
-            args.project = "rnadifffold"
+            args.project = "RNADiffusion"
 
         save_name = f'{args.name}.{args.dataset}.seed_{args.seed}.{time.strftime("%Y-%m-%d_%H-%M-%S")}'
         model.to(args.device)

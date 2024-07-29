@@ -140,7 +140,7 @@ def Gaussian(x):
 
 
 if __name__ == "__main__":
-    data_path = "/home/fkli/Projects/RNADiffFold/dataset"
+    data_path = "/home/fkli/Projects/RNADiffusion/dataset"
     train_data_path = "/home/fkli/Projects/DiffRNA/datasets/batching/train"
     test_data_path = "/home/fkli/RNAdata/RNAcmap2/batching/test"
     val_data_path = "/home/fkli/Projects/DiffRNA/datasets/batching/val"
