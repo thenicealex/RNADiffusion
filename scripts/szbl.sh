@@ -1,12 +1,14 @@
 #!/bin/bash
 
-R_HOME="~/Projects/RNADiffusion"
+R_HOME="$HOME/Projects/RNADiffusion"
 
-rm $R_HOME/main.ipynb
+if [ -f  "$R_HOME/main.ipynb" ]; then
+  rm $R_HOME/main.ipynb
+fi
 
 # Check if rg exists
 if command -v rg &> /dev/null; then
-    rg "/home/fkli" ./ -g "!$R_HOME/scripts/*" | xargs sed -i "s/\/home\/fkli/\/lustre\/home\/fkli/g"
+    rg "/home/fkli" -r  "/lustre/home/fkli" ./
 else
   # Check if grep exists
   if command -v grep &> /dev/null; then

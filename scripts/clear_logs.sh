@@ -1,1 +1,1 @@
-rm -rf ~/Projects/RNADiffusion/logs/*
+rm -rf $HOME/Projects/RNADiffusion/logs/*

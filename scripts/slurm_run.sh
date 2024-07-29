@@ -12,4 +12,4 @@
 
 # Alternatively, partition can be set as follows: gpu-a100-Partition
 
-sh ../run.sh
+sh $HOME/Projects/RNADiffusion/run.sh
