@@ -11,7 +11,7 @@ Each key corresponds to a list of tuples, where each tuple contains the followin
 4. Interaction map
 """
 import os
-import pickle as cPickle
+import pickle
 import numpy as np
 from tqdm import tqdm
 
@@ -77,7 +77,7 @@ if __name__ == "__main__":
     save_path = "/home/fkli/RNAdata/bpRNA_lasted"
 
     with open(dataset_file, "rb") as f:
-        dataset = cPickle.load(f, encoding="bytes")
+        dataset = pickle.load(f, encoding="bytes")
 
     print(f"keys in dataset.pkl is {dataset.keys()}")
     for key in dataset.keys():
@@ -105,5 +105,5 @@ if __name__ == "__main__":
             store_file = f"{save_path}/binning/{c}/{c}_data_{i+1}_{i+80}.pkl"
             print(f"store_path is {store_file}\ndata nums is {len(cate_list)}")
             with open(store_file, "wb") as f:
-                cPickle.dump(cate_list, f)
+                pickle.dump(cate_list, f)
         print("file write completed\n")

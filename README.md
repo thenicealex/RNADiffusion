@@ -1,4 +1,4 @@
-# RNADiffFold: Generative RNA Secondary Structure Prediction using Discrete Diffusion Models
+# RNADiffFold: Generative RNA Secondary Structure Prediction using DiT
 
 ## 1.Please use the .yml file to create your environment
 
@@ -11,17 +11,16 @@ conda env create -f requirements.yml
 ```sh
 python train.py --device cuda:0
                 --diffusion_dim 8
-                --diffusion_steps 20
+                --diffusion_steps 1000
                 --cond_dim 8
-                --dataset all
                 --batch_size 1
                 --dp_rate 0.1
                 --lr 0.0001
                 --warmup 5
                 --seed 2024
                 --log_wandb False
-                --epochs 400
-                --eval_every 20
+                --epochs 50
+                --eval_every 5
 ```
 
 ## 3. Data

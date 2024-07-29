@@ -3,7 +3,7 @@ import os
 from typing import List
 import torch
 import numpy as np
-import pickle as cPickle
+import pickle
 from random import shuffle
 from torch.utils.data import Dataset
 from common.data_utils import encode_name, padding, seq_encoding
@@ -61,7 +61,7 @@ class RNADataset(Dataset):
 
     def load_data(self, path):
         with open(path, "rb") as f:
-            load_data = cPickle.load(f)
+            load_data = pickle.load(f)
         return load_data
 
     # for data balance, 4 times for 160~320 & 320~640
