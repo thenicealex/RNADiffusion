@@ -1,22 +1,29 @@
 # -*- coding: utf-8 -*-
+import argparse
 from torch.utils.data import DataLoader
 import torch.optim as optim
 from torch.optim.lr_scheduler import MultiStepLR
 from os.path import join
-import argparse
-from data.data_generator import RNADataset, diff_collate_fn, get_data_id
-from functools import partial
+from data.data_generator import RNADataset, get_data_id
 
 from models.model import DiffusionRNA2dPrediction, get_model_id
 from optim.scheduler import LinearWarmupScheduler, get_optim_id
 from trainer import Trainer
 from pytorch_lightning import seed_everything
-from models.rna_model.config import TransformerConfig, OptimizerConfig, Config, DataConfig, ProduceConfig, TrainConfig, LoggingConfig
+from models.rna_model.config import (
+    TransformerConfig,
+    OptimizerConfig,
+    Config,
+    DataConfig,
+    ProduceConfig,
+    TrainConfig,
+    LoggingConfig,
+)
 
 seed_everything(42)
 
 MODEL_PATH = "/home/fkli/RNAm"
-DATA_PATH = "/home/fkli/Projects/DiffRNA/datasets/temp"
+DATA_PATH = "$HOME/RNAdata/datasets/temp"
 
 
 def setup_args():
@@ -38,10 +45,6 @@ def setup_args():
     )
 
     # Data params
-    parser.add_argument("--dataset", type=str, default="bpRNAnew")
-    parser.add_argument(
-        "--seq_len", type=str, default="160", choices={"160", "600", "640", "all"}
-    )
     parser.add_argument("--upsampling", type=eval, default=False)
 
     # Optim params
@@ -100,7 +103,6 @@ if __name__ == "__main__":
     train = RNADataset([join(DATA_PATH, "train")], upsampling=False)
     val = RNADataset([join(DATA_PATH, "val")])
     test = RNADataset([join(DATA_PATH, "test")])
-    partial_collate_fn = partial(diff_collate_fn)
 
     train_loader = DataLoader(
         train,

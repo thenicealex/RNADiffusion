@@ -7,9 +7,8 @@ import numpy as np
 import pickle
 from random import shuffle
 from torch.utils.data import Dataset
-from models.rna_model import rna_esm
-from models.rna_model.evo.tokenization import Vocab, mapdict
-from common.data_utils import encode_name, padding, seq_encoding
+from utils.data import encode_name, padding, seq2encoding
+from data.get_base_info import get_base_info_matrix
 
 seq_dict = {
     "A": np.array([1, 0, 0, 0]),
@@ -56,10 +55,14 @@ class RNADataset(Dataset):
         directory = os.path.expanduser(directory)
         for root, _, fnames in sorted(os.walk(directory)):
             for fname in sorted(fnames):
-                if fname.endswith(".cPickle") or fname.endswith(".pickle") or fname.endswith(".pkl"):
+                if (
+                    fname.endswith(".cPickle")
+                    or fname.endswith(".pickle")
+                    or fname.endswith(".pkl")
+                ):
                     path = os.path.join(root, fname)
                     instances.append(path)
-        return instances[:2]
+        return instances
 
     def load_data(self, path):
         with open(path, "rb") as f:
@@ -129,17 +132,23 @@ def preprocess_data(data, set_max_len):
     shuffle(data)
     contact_list = [padding(item["contact"], set_max_len, axis=1) for item in data]
     # base_info_list = torch.tensor(np.stack(base_info_list, axis=0)).float()
-    base_info_list = [item["base_info"] for item in data]
-    data_seq_raw_list = [item["seq_raw"] for item in data]
+    # base_info_list = [item["base_info"] for item in data]
+    data_seq_raw_list = [item["seq_raw"].replace("Y", "N") for item in data]
     data_length_list = [item["length"] for item in data]
     data_name_len_max = max([len(item["name"]) for item in data])
     data_name_list = [
         padding(np.array(encode_name(item["name"])), data_name_len_max) for item in data
     ]
+    base_info_list = [
+        get_base_info_matrix(
+            padding(seq2encoding(seq_raw), set_max_len), length, set_max_len
+        )
+        for seq_raw, length in zip(data_seq_raw_list, data_length_list)
+    ]
     contact_array = np.stack(contact_list, axis=0)
     base_info_array = np.stack(base_info_list, axis=0)
 
-    data_seq_encode_list = [seq_encoding(x) for x in data_seq_raw_list]
+    data_seq_encode_list = [seq2encoding(x) for x in data_seq_raw_list]
     data_seq_encode_pad_list = [padding(x, set_max_len) for x in data_seq_encode_list]
     data_seq_encode_pad_array = np.stack(data_seq_encode_pad_list, axis=0)
 

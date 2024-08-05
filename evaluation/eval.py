@@ -9,8 +9,8 @@ import pandas as pd
 import wandb
 from tqdm import tqdm
 from eval_utils import parse_config, get_data_test, get_model_test, vote4struct, log_eval_metrics, save_metrics
-from common.data_utils import contact_map_masks
-from common.loss_utils import rna_evaluation
+from utils.data import contact_map_masks
+from utils.loss import rna_evaluation
 
 
 def evaluation(args, eval_model, dataloader):

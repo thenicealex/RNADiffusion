@@ -54,6 +54,9 @@ def padding(array, maxlen, constant_values=-1, axis=0):
     # np.pad(array, ((before_1,after_1),……,(before_n,after_n),module)
     return np.pad(array, ((0, maxlen - a), (0, 0)), "constant")
 
+def seq2encoding(seq):
+    encoding = [seq_dict[char] for char in seq]
+    return np.array(encoding)
 
 def encoding2seq(arr):
     seq = list()
@@ -121,13 +124,6 @@ def find_pseudoknot(data):
                 flag = True
                 break
     return flag
-
-
-def seq_encoding(string):
-    str_list = list(string)
-    encoding = list(map(lambda x: seq_dict[x.upper()], str_list))
-    # need to stack
-    return np.stack(encoding, axis=0)
 
 
 def struct_encoding(string):

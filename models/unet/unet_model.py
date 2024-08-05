@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+# UFold Network
+# https://github.com/uci-cbcl/UFold/blob/main/Network.py
 import torch
 import torch.nn as nn
 
@@ -31,7 +33,9 @@ class UpConv(nn.Module):
         super().__init__()
         self.up = nn.Sequential(
             nn.Upsample(scale_factor=2),
-            nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=True),
+            nn.Conv2d(
+                in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=True
+            ),
             nn.BatchNorm2d(out_channels),
             nn.ReLU(inplace=True),
         )
@@ -42,7 +46,7 @@ class UpConv(nn.Module):
 
 
 """
-ufold conditioner
+ufold
 data_seq: (batch_size, seq_len, 4)
 data_lens: int
 requires_channels: 17
@@ -50,7 +54,7 @@ requires_channels: 17
 
 
 class UNet(nn.Module):
-    def __init__(self, n_channels = 17, n_classes = 1):
+    def __init__(self, n_channels=17, n_classes=1):
         super(UNet, self).__init__()
         self.n_channels = n_channels
         self.n_classes = n_classes
@@ -58,25 +62,48 @@ class UNet(nn.Module):
         # Maxpooling 2*2
         self.Maxpool = nn.MaxPool2d(kernel_size=2, stride=2)
 
-        self.Conv1 = DoubleConv(in_channels=self.n_channels, out_channels=int(32 * CH_FOLD))
-        self.Conv2 = DoubleConv(in_channels=int(32 * CH_FOLD), out_channels=int(64 * CH_FOLD))
-        self.Conv3 = DoubleConv(in_channels=int(64 * CH_FOLD), out_channels=int(128 * CH_FOLD))
-        self.Conv4 = DoubleConv(in_channels=int(128 * CH_FOLD), out_channels=int(256 * CH_FOLD))
-        self.Conv5 = DoubleConv(in_channels=int(256 * CH_FOLD), out_channels=int(512 * CH_FOLD))
+        self.Conv1 = DoubleConv(
+            in_channels=self.n_channels, out_channels=int(32 * CH_FOLD)
+        )
+        self.Conv2 = DoubleConv(
+            in_channels=int(32 * CH_FOLD), out_channels=int(64 * CH_FOLD)
+        )
+        self.Conv3 = DoubleConv(
+            in_channels=int(64 * CH_FOLD), out_channels=int(128 * CH_FOLD)
+        )
+        self.Conv4 = DoubleConv(
+            in_channels=int(128 * CH_FOLD), out_channels=int(256 * CH_FOLD)
+        )
+        self.Conv5 = DoubleConv(
+            in_channels=int(256 * CH_FOLD), out_channels=int(512 * CH_FOLD)
+        )
 
-        self.Up5 = UpConv(in_channels=int(512 * CH_FOLD), out_channels=int(256 * CH_FOLD))
-        self.Up_conv5 = DoubleConv(in_channels=int(512 * CH_FOLD), out_channels=int(256 * CH_FOLD))
+        self.Up5 = UpConv(
+            in_channels=int(512 * CH_FOLD), out_channels=int(256 * CH_FOLD)
+        )
+        self.Up_conv5 = DoubleConv(
+            in_channels=int(512 * CH_FOLD), out_channels=int(256 * CH_FOLD)
+        )
 
-        self.Up4 = UpConv(in_channels=int(256 * CH_FOLD), out_channels=int(128 * CH_FOLD))
-        self.Up_conv4 = DoubleConv(in_channels=int(256 * CH_FOLD), out_channels=int(128 * CH_FOLD))
+        self.Up4 = UpConv(
+            in_channels=int(256 * CH_FOLD), out_channels=int(128 * CH_FOLD)
+        )
+        self.Up_conv4 = DoubleConv(
+            in_channels=int(256 * CH_FOLD), out_channels=int(128 * CH_FOLD)
+        )
 
-        self.Up3 = UpConv(in_channels=int(128 * CH_FOLD), out_channels=int(64 * CH_FOLD))
-        self.Up_conv3 = DoubleConv(in_channels=int(128 * CH_FOLD), out_channels=int(64 * CH_FOLD))
+        self.Up3 = UpConv(
+            in_channels=int(128 * CH_FOLD), out_channels=int(64 * CH_FOLD)
+        )
+        self.Up_conv3 = DoubleConv(
+            in_channels=int(128 * CH_FOLD), out_channels=int(64 * CH_FOLD)
+        )
 
         self.Up2 = UpConv(in_channels=int(64 * CH_FOLD), out_channels=int(32 * CH_FOLD))
-        self.Up_conv2 = DoubleConv(in_channels=int(64 * CH_FOLD), out_channels=int(32 * CH_FOLD))
+        self.Up_conv2 = DoubleConv(
+            in_channels=int(64 * CH_FOLD), out_channels=int(32 * CH_FOLD)
+        )
 
-        # 可以修改output_ch，使得输出的channel数不同
         self.Conv_1x1 = nn.Conv2d(
             int(32 * CH_FOLD), self.n_classes, kernel_size=1, stride=1, padding=0
         )

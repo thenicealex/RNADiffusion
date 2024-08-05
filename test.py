@@ -5,15 +5,11 @@ import pickle
 import numpy as np
 import torch
 from tqdm import tqdm
+from utils.data import padding
 
 data_path = "/home/fkli/Projects/RNADiffusion/dataset/dataset.pkl"
-
 test_path = "/home/fkli/Projects/RNADiffusion/data/test"
 
 
 if __name__ == "__main__":
-    with open(data_path, "rb") as f:
-        datasets = pickle.load(f, encoding="bytes")
-    print(f"keys in dataset.pkl is {datasets.keys()}")
-    for key in datasets.keys():
-        print(datasets[key][0])
+    print("Loading data from {}".format(data_path))
