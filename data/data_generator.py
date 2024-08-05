@@ -57,7 +57,7 @@ class RNADataset(Dataset):
                 if fname.endswith(".cPickle") or fname.endswith(".pkl"):
                     path = os.path.join(root, fname)
                     instances.append(path)
-        return instances[:2]
+        return instances[2:3]
 
     def load_data(self, path):
         with open(path, "rb") as f:

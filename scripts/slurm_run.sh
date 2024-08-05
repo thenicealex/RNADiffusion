@@ -10,6 +10,6 @@
 #SBATCH --time=1-00:00:00
 
 
-# Alternatively, partition can be set as follows: gpu-a100-Partition
+# Alternatively, partition can be set as follows: gpu-1 gpu-2 gpu-a100-Partition
 
 sh $HOME/Projects/RNADiffusion/run.sh

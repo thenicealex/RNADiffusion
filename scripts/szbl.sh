@@ -8,7 +8,7 @@ fi
 
 # Check if rg exists
 if command -v rg &> /dev/null; then
-    rg "/home/fkli" -r  "/lustre/home/fkli" ./
+    rg "/home/fkli" -r  "/lustre/home/fkli" ./ -g '!scripts/'
 else
   # Check if grep exists
   if command -v grep &> /dev/null; then

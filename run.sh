@@ -1,9 +1,9 @@
 python main.py  --device cuda:3 \
                 --diffusion_dim 8 \
-                --diffusion_steps 1000 \
+                --diffusion_steps 1 \
                 --cond_dim 8 \
-                --epochs 5 \
-                --eval_every 5 \
+                --epochs 1 \
+                --eval_every 1 \
                 --dry_run \
                 --batch_size 1 \
                 --dp_rate 0.1 \
