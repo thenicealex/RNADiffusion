@@ -107,7 +107,6 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         shuffle=True,
         num_workers=args.num_workers,
-        collate_fn=partial_collate_fn,
         pin_memory=args.pin_memory,
         drop_last=True,
     )
@@ -117,7 +116,6 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         shuffle=False,
         num_workers=args.num_workers,
-        collate_fn=partial_collate_fn,
         pin_memory=args.pin_memory,
         drop_last=False,
     )
@@ -127,7 +125,6 @@ if __name__ == "__main__":
         batch_size=args.batch_size,
         shuffle=False,
         num_workers=args.num_workers,
-        collate_fn=partial_collate_fn,
         pin_memory=args.pin_memory,
         drop_last=False,
     )

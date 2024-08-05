@@ -145,9 +145,9 @@ class RNAESM2(nn.Module):
             raise ValueError("Please provide a valid RNA-ESM2 checkpoint")
         else:
             self.esm_ckpt = esm_ckpt
-        self.model, self.rna_map_vocab, self.rna_alphabet = self.__init_model()
+        self.model, self.rna_map_vocab, self.rna_alphabet = self.__init_model__()
 
-    def __init_model(self):
+    def __init_model__(self):
         _, protein_alphabet = rna_esm.pretrained.esm2_t30_150M_UR50D()
         rna_alphabet = rna_esm.data.Alphabet.from_architecture("rna-esm")
         protein_vocab = Vocab.from_esm_alphabet(protein_alphabet)

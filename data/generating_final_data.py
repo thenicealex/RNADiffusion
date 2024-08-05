@@ -1,7 +1,7 @@
 from itertools import product
 from math import exp
 import os
-import pickle as cPickle
+import pickle
 import numpy as np
 from tqdm import tqdm
 
@@ -140,7 +140,7 @@ def Gaussian(x):
 
 
 if __name__ == "__main__":
-    data_path = "/home/fkli/Projects/RNADiffFold/dataset"
+    data_path = "/home/fkli/Projects/RNADiffusion/dataset"
     train_data_path = "/home/fkli/Projects/DiffRNA/datasets/batching/train"
     test_data_path = "/home/fkli/RNAdata/RNAcmap2/batching/test"
     val_data_path = "/home/fkli/Projects/DiffRNA/datasets/batching/val"
@@ -154,7 +154,7 @@ if __name__ == "__main__":
             print(f"source path is {source_path}")
 
             with open(source_path, "rb") as f:
-                data = cPickle.load(f, encoding="bytes")
+                data = pickle.load(f, encoding="bytes")
 
             print(f"data nums is {len(data)}")
 
@@ -168,4 +168,4 @@ if __name__ == "__main__":
                 os.makedirs(os.path.join(target_data_path, c))
 
             with open(target_path, "wb") as f:
-                cPickle.dump(data, f)
+                pickle.dump(data, f)

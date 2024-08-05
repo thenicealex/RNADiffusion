@@ -4,11 +4,12 @@ import os
 from typing import List
 import torch
 import numpy as np
-import pickle as cPickle
+import pickle
 from random import shuffle
 from torch.utils.data import Dataset
 from models.rna_model import rna_esm
 from models.rna_model.evo.tokenization import Vocab, mapdict
+from common.data_utils import encode_name, padding, seq_encoding
 
 seq_dict = {
     "A": np.array([1, 0, 0, 0]),
@@ -37,25 +38,33 @@ seq_dict = {
 
 class RNADataset(Dataset):
     def __init__(self, data_root: List[str], upsampling: bool = False) -> None:
+        if len(data_root) == 0:
+            raise ValueError("data_root should be a list of data path")
         self.data_root = data_root
         self.upsampling = upsampling
 
-        if len(self.data_root) == 1:
-            samples = self.make_dataset(self.data_root[0])
-        elif len(self.data_root) > 1:
-            samples = []
-            for root in self.data_root:
-                samples += self.make_dataset(root)
-        else:
-            raise ValueError("data_root is empty")
+        self.samples = []
+        for root in self.data_root:
+            print("Loading data from {}".format(root))
+            self.samples += self.make_dataset(root)
 
-        self.samples = samples
         if self.upsampling:
             self.samples = self.upsampling_data()
 
-    @staticmethod
-    def make_dataset(directory: str) -> List[str]:
-        return make_dataset_path(directory)
+    def make_dataset(self, directory: str) -> List[str]:
+        instances = []
+        directory = os.path.expanduser(directory)
+        for root, _, fnames in sorted(os.walk(directory)):
+            for fname in sorted(fnames):
+                if fname.endswith(".cPickle") or fname.endswith(".pickle") or fname.endswith(".pkl"):
+                    path = os.path.join(root, fname)
+                    instances.append(path)
+        return instances[:2]
+
+    def load_data(self, path):
+        with open(path, "rb") as f:
+            load_data = pickle.load(f)
+        return load_data
 
     # for data balance, 4 times for 160~320 & 320~640
     def upsampling_data(self):
@@ -63,7 +72,7 @@ class RNADataset(Dataset):
         final_data_list = self.samples
         for data_path in final_data_list:
             with open(data_path, "rb") as f:
-                load_data = cPickle.load(f)
+                load_data = pickle.load(f)
             max_len = max([x["length"] for x in load_data])
             if max_len == 160:
                 continue
@@ -85,7 +94,7 @@ class RNADataset(Dataset):
 
     def __getitem__(self, index: int):
         batch_data_path = self.samples[index]
-        data = load_data(batch_data_path)
+        data = self.load_data(batch_data_path)
         seq_max_len = max([x["length"] for x in data])
         set_max_len = (seq_max_len // 80 + int(seq_max_len % 80 != 0)) * 80
 
@@ -101,60 +110,32 @@ class RNADataset(Dataset):
 
         contact = torch.tensor(contact_array).unsqueeze(1).long()
         base_info = torch.tensor(base_info_array).float()
-        data_length = torch.tensor(data_length_list).long()
+        data_name_list = torch.tensor(np.array(data_name_list))
+        data_length_list = torch.tensor(data_length_list).long()
         data_seq_encode_pad = torch.tensor(data_seq_encode_pad_array).float()
 
         return (
             contact,
             base_info,
             data_seq_raw_list,
-            data_length,
+            data_length_list,
             data_name_list,
             set_max_len,
             data_seq_encode_pad,
         )
 
 
-def make_dataset_path(directory: str) -> List[str]:
-    instances = []
-    directory = os.path.expanduser(directory)
-    for root, _, fnames in sorted(os.walk(directory)):
-        for fname in sorted(fnames):
-            if fname.endswith(".cPickle") or fname.endswith(".pkl"):
-                path = os.path.join(root, fname)
-                instances.append(path)
-
-    return instances[:]
-
-
-def padding_two(data_array, maxlen):
-    a, b = data_array.shape
-    # np.pad(array, ((before_1,after_1),……,(before_n,after_n),module)
-    return np.pad(data_array, ((0, maxlen - a), (0, maxlen - b)), "constant")
-
-
-def load_data(path):
-    with open(path, "rb") as f:
-        load_data = cPickle.load(f)
-    return load_data
-
-
-def seq_encoding(string):
-    str_list = list(string)
-    encoding = list(map(lambda x: seq_dict[x.upper()], str_list))
-    # need to stack
-    return np.stack(encoding, axis=0)
-
-
 def preprocess_data(data, set_max_len):
     shuffle(data)
-    contact_list = [padding_two(item["contact"], set_max_len) for item in data]
+    contact_list = [padding(item["contact"], set_max_len, axis=1) for item in data]
     # base_info_list = torch.tensor(np.stack(base_info_list, axis=0)).float()
     base_info_list = [item["base_info"] for item in data]
     data_seq_raw_list = [item["seq_raw"] for item in data]
     data_length_list = [item["length"] for item in data]
-    data_name_list = [item["name"] for item in data]
-
+    data_name_len_max = max([len(item["name"]) for item in data])
+    data_name_list = [
+        padding(np.array(encode_name(item["name"])), data_name_len_max) for item in data
+    ]
     contact_array = np.stack(contact_list, axis=0)
     base_info_array = np.stack(base_info_list, axis=0)
 
@@ -171,18 +152,6 @@ def preprocess_data(data, set_max_len):
         set_max_len,
         data_seq_encode_pad_array,
     )
-
-
-def generate_token_batch_esm(seq_strs):
-    _, protein_alphabet = rna_esm.pretrained.esm2_t30_150M_UR50D()
-    rna_alphabet = rna_esm.data.Alphabet.from_architecture("rna-esm")
-    protein_vocab = Vocab.from_esm_alphabet(protein_alphabet)
-    rna_vocab = Vocab.from_esm_alphabet(rna_alphabet)
-    rna_map_dict = mapdict(protein_vocab, rna_vocab)
-    rna_map_vocab = Vocab.from_esm_alphabet(rna_alphabet, rna_map_dict)
-    tokens = torch.from_numpy(rna_map_vocab.encode(seq_strs)).unsqueeze(0)
-
-    return tokens
 
 
 def generate_token_batch(alphabet, seq_strs):
@@ -301,8 +270,3 @@ def diff_collate_fn(batch):
         set_max_len,
         data_seq_encode_pad,
     )
-
-
-def padding(data_array, maxlen):
-    a, b = data_array.shape
-    return np.pad(data_array, ((0, maxlen - a), (0, 0)), "constant")

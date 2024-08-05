@@ -1,5 +1,5 @@
 """
-dataset/dataset.pkl is a dictionary that contains the following keys:
+$HOME/RNAdata/dataset.pkl is a dictionary that contains the following keys:
 1. train_data: training data
 2. valid_data: validation data
 3. test_data: test data
@@ -11,7 +11,7 @@ Each key corresponds to a list of tuples, where each tuple contains the followin
 4. Interaction map
 """
 import os
-import pickle as cPickle
+import pickle
 import numpy as np
 from tqdm import tqdm
 
@@ -78,7 +78,7 @@ if __name__ == "__main__":
     data_path = "/home/fkli/RNAdata/RNAcmap2"
 
     with open(datasets_path, "rb") as f:
-        datasets = cPickle.load(f, encoding="bytes")
+        datasets = pickle.load(f, encoding="bytes")
 
     # print(f"keys in dataset.pkl is {datasets.keys()}")
     # for key in datasets.keys():
@@ -104,5 +104,5 @@ if __name__ == "__main__":
         store_path = f"{data_path}/binning/{c}/{c}_data_{i+1}_{i+80}.pkl"
         print(f"store_path is {store_path}\ndata nums is {len(cate_list)}")
         with open(store_path, "wb") as f:
-            cPickle.dump(cate_list, f)
+            pickle.dump(cate_list, f)
     print("file write completed\n")

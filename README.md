@@ -1,4 +1,4 @@
-# RNADiffusion: Generative RNA Secondary Structure Prediction using Diffusion Models
+# RNADiffusion: Generative RNA Secondary Structure Prediction using DiT
 
 ## 1.Please use the .yml file to create your environment
 
@@ -20,8 +20,8 @@ python train.py --device cuda:0 \
                 --warmup 5 \
                 --seed 2024 \
                 --log_wandb False \
-                --epochs 400 \
-                --eval_every 20 \
+                --epochs 50 \
+                --eval_every 3 \
                 --u_conditioner_ckpt ufold_train_alldata.pt \
                 --esm_conditioner_ckpt esm.ckpt \
 ```

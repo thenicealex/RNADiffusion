@@ -2,23 +2,22 @@
 import os
 import time
 import numpy
-import pickle as cPickle
+import pickle
 from os.path import join
 
 from tqdm import tqdm
 
 def load_data(path):
     with open(path, "rb") as f:
-        load_data = cPickle.load(f)
+        load_data = pickle.load(f)
     return load_data
 
 if __name__=="__main__":
-    data_path = "/home/fkli/Projects/RNADiffFold/datasets"
-    train_data_path = "/home/fkli/Projects/RNADiffFold/datasets/train"
-    test_data_path = "/home/fkli/RNAdata/RNAcmap2/binning/test"
-    val_data_path = "/home/fkli/Projects/RNADiffFold/datasets/val"
-    target_data_path = "/home/fkli/RNAdata/RNAcmap2/batching"
-    path_list = [test_data_path]
+    train_data_path = "/home/fkli/RNAdata/bpRNA_lasted/binning/train"
+    test_data_path = "/home/fkli/RNAdata/bpRNA_lasted/binning/test"
+    val_data_path = "/home/fkli/RNAdata/bpRNA_lasted/binning/val"
+    target_data_path = "/home/fkli/RNAdata/bpRNA_lasted/batching"
+    path_list = [train_data_path,val_data_path, test_data_path]
 
     for dpath in path_list:
         for k in tqdm(range(0, len(os.listdir(dpath)))):
@@ -52,5 +51,5 @@ if __name__=="__main__":
 
                 target_path = join(target_data_path, c, f"{i}_{i+set_batch}_{set_max_len}.pkl")
                 with open(target_path, "wb") as f:
-                    cPickle.dump(batch_data, f)
+                    pickle.dump(batch_data, f)
                 print(f"write {target_path} done")

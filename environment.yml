@@ -1,4 +1,4 @@
-name: RNADiffFold
+name: RNADiffusion
 channels:
   - conda-forge
   - defaults
@@ -223,4 +223,4 @@ dependencies:
       - xyzservices==2024.4.0
       - yarl==1.9.2
       - zipp==3.15.0
-prefix: /home/fkli/miniconda3/envs/RNADiffFold
+prefix: /home/fkli/miniconda3/envs/RNADiffusion
