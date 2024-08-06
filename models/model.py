@@ -165,8 +165,6 @@ class RNAESM2(nn.Module):
         return model, rna_map_vocab, rna_alphabet
 
     def forward(self, data_seq_raw, set_max_len=80):
-        if len(data_seq_raw) > set_max_len:
-            return ValueError("Input sequence is longer than setting max length")
         self.model.eval()
         self.model.to(self.device)
 

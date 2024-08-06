@@ -4,6 +4,8 @@ import numpy as np
 from math import exp
 from tqdm import tqdm
 from itertools import product
+import sys
+sys.path.append("/home/fkli/Projects/RNADiffusion")
 from utils.data import padding, seq2encoding
 
 
@@ -17,7 +19,7 @@ def parse_fasta(seq_dataset):
 
 def get_base_info_matrix(seq_raw, data_length, set_length):
     seq_onehot_pad = padding(seq2encoding(seq_raw), set_length)
-    perm = [product(np.arange(4), np.arange(4))]
+    perm = list(product(np.arange(4), np.arange(4)))
     kronecker_product = np.zeros((16, set_length, set_length))
     # Calculate the Kronecker product of the sequence
     for n, cord in enumerate(perm):

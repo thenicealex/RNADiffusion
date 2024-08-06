@@ -23,7 +23,7 @@ from models.rna_model.config import (
 seed_everything(42)
 
 MODEL_PATH = "/home/fkli/RNAm"
-DATA_PATH = "$HOME/RNAdata/datasets/temp"
+DATA_PATH = "/home/fkli/RNAdata/bpRNA_lasted/data"
 
 
 def setup_args():

@@ -62,12 +62,41 @@ class RNADataset(Dataset):
                 ):
                     path = os.path.join(root, fname)
                     instances.append(path)
-        return instances
+        return instances[:1]
 
     def load_data(self, path):
         with open(path, "rb") as f:
             load_data = pickle.load(f)
         return load_data
+
+    def preprocess(self, data, set_max_len):
+        shuffle(data)
+        contact_list = [padding(item["contact"], set_max_len, axis=1) for item in data]
+        base_info_list = [item["base_info"] for item in data]
+        data_seq_raw_list = [item["seq_raw"].replace("Y", "N") for item in data]
+        data_length_list = [item["length"] for item in data]
+        data_name_len_max = max([len(item["name"]) for item in data])
+        data_name_list = [
+            padding(np.array(encode_name(item["name"])), data_name_len_max)
+            for item in data
+        ]
+        contact_array = np.stack(contact_list, axis=0)
+        base_info_array = np.stack(base_info_list, axis=0)
+
+        data_seq_encode_list = [seq2encoding(x) for x in data_seq_raw_list]
+        data_seq_encode_pad_list = [
+            padding(x, set_max_len) for x in data_seq_encode_list
+        ]
+        data_seq_encode_pad_array = np.stack(data_seq_encode_pad_list, axis=0)
+
+        return (
+            data_name_list,
+            data_seq_raw_list,
+            data_length_list,
+            contact_array,
+            base_info_array,
+            data_seq_encode_pad_array,
+        )
 
     # for data balance, 4 times for 160~320 & 320~640
     def upsampling_data(self):
@@ -102,14 +131,13 @@ class RNADataset(Dataset):
         set_max_len = (seq_max_len // 80 + int(seq_max_len % 80 != 0)) * 80
 
         (
-            contact_array,
-            base_info_array,
+            data_name_list,
             data_seq_raw_list,
             data_length_list,
-            data_name_list,
-            set_max_len,
+            contact_array,
+            base_info_array,
             data_seq_encode_pad_array,
-        ) = preprocess_data(data, set_max_len)
+        ) = self.preprocess(data, set_max_len)
 
         contact = torch.tensor(contact_array).unsqueeze(1).long()
         base_info = torch.tensor(base_info_array).float()
@@ -118,49 +146,14 @@ class RNADataset(Dataset):
         data_seq_encode_pad = torch.tensor(data_seq_encode_pad_array).float()
 
         return (
-            contact,
-            base_info,
+            data_name_list,
             data_seq_raw_list,
             data_length_list,
-            data_name_list,
             set_max_len,
+            contact,
+            base_info,
             data_seq_encode_pad,
         )
-
-
-def preprocess_data(data, set_max_len):
-    shuffle(data)
-    contact_list = [padding(item["contact"], set_max_len, axis=1) for item in data]
-    # base_info_list = torch.tensor(np.stack(base_info_list, axis=0)).float()
-    # base_info_list = [item["base_info"] for item in data]
-    data_seq_raw_list = [item["seq_raw"].replace("Y", "N") for item in data]
-    data_length_list = [item["length"] for item in data]
-    data_name_len_max = max([len(item["name"]) for item in data])
-    data_name_list = [
-        padding(np.array(encode_name(item["name"])), data_name_len_max) for item in data
-    ]
-    base_info_list = [
-        get_base_info_matrix(
-            padding(seq2encoding(seq_raw), set_max_len), length, set_max_len
-        )
-        for seq_raw, length in zip(data_seq_raw_list, data_length_list)
-    ]
-    contact_array = np.stack(contact_list, axis=0)
-    base_info_array = np.stack(base_info_list, axis=0)
-
-    data_seq_encode_list = [seq2encoding(x) for x in data_seq_raw_list]
-    data_seq_encode_pad_list = [padding(x, set_max_len) for x in data_seq_encode_list]
-    data_seq_encode_pad_array = np.stack(data_seq_encode_pad_list, axis=0)
-
-    return (
-        contact_array,
-        base_info_array,
-        data_seq_raw_list,
-        data_length_list,
-        data_name_list,
-        set_max_len,
-        data_seq_encode_pad_array,
-    )
 
 
 def generate_token_batch(alphabet, seq_strs):
@@ -188,7 +181,7 @@ def generate_token_batch(alphabet, seq_strs):
 
 
 def get_data_id(args):
-    return "{}_{}".format(args.dataset, args.seq_len)
+    return "bpRNA"
 
 
 def diff_collate_fn(batch):

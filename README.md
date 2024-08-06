@@ -13,7 +13,6 @@ python train.py --device cuda:0 \
                 --diffusion_dim 8 \ 
                 --diffusion_steps 20 \
                 --cond_dim 8 \
-                --dataset all \
                 --batch_size 1 \
                 --dp_rate 0.1 \
                 --lr 0.0001 \
@@ -29,6 +28,7 @@ python train.py --device cuda:0 \
 ## 3. Data
 
 ```sh
+python data/binning_data.py
 python data/batching_data.py
-python data/generating_final_data.py
+python data/get_base_info.py
 ```

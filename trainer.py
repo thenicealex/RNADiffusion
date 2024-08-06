@@ -6,12 +6,16 @@ import pandas as pd
 from os.path import join
 import time
 import pickle
+import sys
+
+sys.path.append("/home/fkli/Projects/RNADiffusion")
 
 from torch.utils.tensorboard import SummaryWriter
 import wandb
 import pathlib
 
-from utils import get_args_table, get_metric_table, clean_dict
+from utils.tables import get_args_table, get_metric_table
+from utils.dicts import clean_dict
 from utils.data import contact_map_masks, decode_name
 from utils.loss import bce_loss, evaluate_f1_precision_recall
 from utils.loss import (
@@ -318,7 +322,9 @@ class DiffusionTrainer(BaseTrainer):
         if args.project is None:
             args.project = "RNADiffusion"
 
-        save_name = f'{args.name}.{args.dataset}.seed_{args.seed}.{time.strftime("%Y-%m-%d_%H-%M-%S")}'
+        save_name = (
+            f'{args.name}.bpRNA.seed_{args.seed}.{time.strftime("%Y-%m-%d_%H-%M-%S")}'
+        )
         model.to(args.device)
 
         super(DiffusionTrainer, self).__init__(
@@ -479,21 +485,21 @@ class Trainer(DiffusionTrainer):
         loss_count = 0
         device = self.args.device
         for _, (
-            contact,
-            base_info,
+            _,
             data_seq_raw,
             data_length,
-            _,
             set_max_len,
+            contact,
+            base_info,
             data_seq_encoding,
         ) in enumerate(self.train_loader):
             self.optimizer.zero_grad()
-            contact = contact.to(device)
-            base_info = base_info.to(device)
+            contact = contact.squeeze(0).to(device)
+            base_info = base_info.squeeze(0).to(device)
             matrix_rep = torch.zeros_like(contact)
-            data_length = data_length.to(device)
+            data_length = data_length.squeeze(0).to(device)
             # data_seq_raw = data_seq_raw.to(device)
-            data_seq_encoding = data_seq_encoding.to(device)
+            data_seq_encoding = data_seq_encoding.squeeze(0).to(device)
             contact_masks = contact_map_masks(data_length, matrix_rep).to(device)
 
             loss = self.model(
@@ -515,7 +521,7 @@ class Trainer(DiffusionTrainer):
                 "Training. Epoch: {}/{}, Bits/dim: {:.5f}".format(
                     epoch + 1, self.args.epochs, loss_sum / loss_count
                 ),
-                end="\r",
+                end="\n",
             )
 
         if self.scheduler_epoch:
@@ -535,19 +541,20 @@ class Trainer(DiffusionTrainer):
             mcc_no_train = list()
 
             for _, (
-                contact,
-                base_info,
+                _,
                 data_seq_raw,
                 data_length,
-                _,
                 set_max_len,
+                contact,
+                base_info,
                 data_seq_encoding,
             ) in enumerate(self.val_loader):
-                base_info = base_info.to(device)
+                contact = contact.squeeze(0)
+                base_info = base_info.squeeze(0).to(device)
                 matrix_rep = torch.zeros_like(contact)
-                data_length = data_length.to(device)
+                data_length = data_length.squeeze(0).to(device)
                 # data_seq_raw = data_seq_raw.to(device)
-                data_seq_encoding = data_seq_encoding.to(device)
+                data_seq_encoding = data_seq_encoding.squeeze(0).to(device)
                 contact_masks = contact_map_masks(data_length, matrix_rep).to(device)
 
                 # calculate contact loss
@@ -620,25 +627,27 @@ class Trainer(DiffusionTrainer):
             total_length_list = list()
 
             for _, (
-                contact,
-                base_info,
+                data_name,
                 data_seq_raw,
                 data_length,
-                data_name,
                 set_max_len,
+                contact,
+                base_info,
                 data_seq_encoding,
             ) in enumerate(self.test_loader):
+                data_length = data_length.squeeze(0).to(device)
                 data_name_list = [
-                    list(filter(lambda x: x != -1, item.numpy())) for item in data_name.squeeze(0)
+                    list(filter(lambda x: x != -1, item.numpy()))
+                    for item in data_name.squeeze(0)
                 ]
                 total_name_list += [decode_name(item) for item in data_name_list]
                 total_length_list += [item.item() for item in data_length]
 
-                base_info = base_info.to(device)
+                contact = contact.squeeze(0)
+                base_info = base_info.squeeze(0).to(device)
                 matrix_rep = torch.zeros_like(contact)
-                data_length = data_length.to(device)
                 # data_seq_raw = data_seq_raw.to(device)
-                data_seq_encoding = data_seq_encoding.to(device)
+                data_seq_encoding = data_seq_encoding.squeeze(0).to(device)
                 contact_masks = contact_map_masks(data_length, matrix_rep).to(device)
 
                 # calculate contact loss
