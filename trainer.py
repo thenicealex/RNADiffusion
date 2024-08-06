@@ -22,6 +22,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 HOME = str(pathlib.Path.home())
 
+
 class EarlyStopping(object):
     def __init__(self, patience=5, min_delta=1e-3):
         self.patience = patience
@@ -462,19 +463,22 @@ class Trainer(DiffusionTrainer):
         for _, (
             set_max_len,
             _,
-            _,
+            data_length,
             contact,
             data_seq_raw,
             data_seq_encoding,
         ) in enumerate(self.train_loader):
             self.optimizer.zero_grad()
-            set_max_len = set_max_len.to(device)
-            C, B, H, W = contact.size()
-            contact = contact.view(B, C, H, W).to(device)
-            C, B, H, W = data_seq_encoding.size()
-            data_seq_encoding = data_seq_encoding.view(B, C, H, W).to(device)
+            contact = contact.squeeze(0).to(device)
+            matrix_rep = torch.zeros_like(contact)
+            data_seq_encoding = data_seq_encoding.squeeze(0).to(device)
+            data_length = data_length.squeeze(0).to(device)
+            # data_seq_raw = data_seq_raw.to(device)
+            contact_masks = contact_map_masks(data_length, matrix_rep).to(device)
 
-            loss = self.model(contact, data_seq_raw, set_max_len, data_seq_encoding)
+            loss = self.model(
+                contact, data_seq_raw, contact_masks, set_max_len, data_seq_encoding
+            )
             loss.backward()
 
             self.optimizer.step()
@@ -513,13 +517,10 @@ class Trainer(DiffusionTrainer):
                 data_seq_raw,
                 data_seq_encoding,
             ) in enumerate(self.val_loader):
+                contact = contact.squeeze(0)
                 matrix_rep = torch.zeros_like(contact)
-                C, B, H, W = contact.size()
-                contact = contact.view(B, C, H, W)
-                C, B, H, W = data_seq_encoding.size()
-                data_seq_encoding = data_seq_encoding.view(B, C, H, W).to(device)
-                set_max_len = set_max_len.to(device)
-                data_length = data_length.to(device)
+                data_seq_encoding = data_seq_encoding.squeeze(0).to(device)
+                data_length = data_length.squeeze(0).to(device)
                 contact_masks = contact_map_masks(data_length, matrix_rep).to(device)
 
                 # calculate contact loss
@@ -533,7 +534,7 @@ class Trainer(DiffusionTrainer):
                 )
 
                 pred_x0 = pred_x0.cpu().float()
-                val_loss_sum += bce_loss(pred_x0, contact.float()).cpu().item()
+                val_loss_sum += bce_loss(pred_x0.float(), contact.float()).cpu().item()
                 loss_count += len(contact)
                 auc_score += calculate_auc(contact.float(), pred_x0)
                 auc_count += 1
@@ -599,20 +600,17 @@ class Trainer(DiffusionTrainer):
                 data_seq_encoding,
             ) in enumerate(self.test_loader):
                 data_name = data_name.squeeze(0)
-                matrix_rep = torch.zeros_like(contact)
-                C, B, H, W = contact.size()
-                contact = contact.view(B, C, H, W)
-                C, B, H, W = data_seq_encoding.size()
-                data_seq_encoding = data_seq_encoding.view(B, C, H, W).to(device)
+                contact = contact.squeeze(0)
+                data_seq_encoding = data_seq_encoding.squeeze(0).to(device)
+                data_length = data_length.squeeze(0)
                 data_name_list = [
                     list(filter(lambda x: x != -1, item.numpy())) for item in data_name
                 ]
                 total_name_list += [decode_name(item) for item in data_name_list]
-                total_length_list += [item for item in data_length[0]]
+                total_length_list += [item for item in data_length]
 
                 matrix_rep = torch.zeros_like(contact)
                 data_length = data_length.to(device)
-                data_seq_encoding = data_seq_encoding.to(device)
                 contact_masks = contact_map_masks(data_length, matrix_rep).to(device)
 
                 # calculate contact loss

@@ -1,15 +1,14 @@
 python main.py  --device cuda:3 \
                 --diffusion_dim 8 \
-                --diffusion_steps 1 \
+                --diffusion_steps 2 \
                 --cond_dim 8 \
-                --epochs 1 \
+                --epochs 2 \
                 --eval_every 1 \
                 --dry_run \
                 --batch_size 1 \
                 --dp_rate 0.1 \
                 --lr 0.0001 \
                 --warmup 5 \
-                --seed 2024 \
                 --log_home $HOME/Projects/RNADiffusion \
                 --log_wandb False \
                 --esm_conditioner_ckpt $HOME/RNAm/RNA-ESM2-trans-2a100-mappro-KDNY-epoch_06-valid_F1_0.564.ckpt \

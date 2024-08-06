@@ -57,12 +57,13 @@ class DiffusionRNA2dPrediction(nn.Module):
         self,
         x_0,
         data_seq_raw,
+        contact_masks,
         set_max_len,
         data_seq_encoding,
     ):
         esm_condition = self.esm_conditioner(data_seq_raw, set_max_len)
 
-        loss = self.diffusion(x_0, esm_condition, data_seq_encoding)
+        loss = self.diffusion(x_0, esm_condition, contact_masks, data_seq_encoding)
 
         loglik_bpd = -loss.sum() / (math.log(2) * x_0.shape.numel())
         return loglik_bpd

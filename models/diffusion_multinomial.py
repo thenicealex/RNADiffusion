@@ -219,7 +219,7 @@ class MultinomialDiffusion(nn.Module):
         return sum_except_batch(kl_prior)
 
     # compute L_{t-1} and L_0
-    def compute_Lt(self, log_x_0, log_x_t, esm_condition, seq_encoding, t, detach_mean=False):
+    def compute_Lt(self, log_x_0, log_x_t, esm_condition, seq_encoding, t, contact_masks, detach_mean=False):
         log_true_prob = self.q_posterior(log_x_t=log_x_t, log_x_0=log_x_0, t=t)
 
         log_model_prob = self.p_pred(
@@ -270,7 +270,7 @@ class MultinomialDiffusion(nn.Module):
             raise ValueError('Unknown method: {}'.format(method))
 
 
-    def forward(self, x_0, esm_condition, seq_encoding):
+    def forward(self, x_0, esm_condition,contact_masks, seq_encoding):
         batch, device = x_0.size(0), x_0.device
 
         t, pt = self.sample_time(batch, device, 'importance')
@@ -282,6 +282,7 @@ class MultinomialDiffusion(nn.Module):
             esm_condition=esm_condition,
             seq_encoding=seq_encoding,
             t=t,
+            contact_masks=contact_masks
         )
 
         Lt2 = kl.pow(2)

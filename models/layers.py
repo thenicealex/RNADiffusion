@@ -406,7 +406,7 @@ class SegmentationUnet2DCondition(nn.Module):
             ],
             dim=1,
         )
-        seq_encoding = seq_encoding.squeeze(1).permute(0, 2, 1)
+        seq_encoding = seq_encoding.permute(0, 2, 1)
 
         seq_out_cat = torch.cat(
             [

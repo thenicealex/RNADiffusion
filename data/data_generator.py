@@ -57,7 +57,7 @@ class RNADataset(Dataset):
                 if fname.endswith(".cPickle") or fname.endswith(".pkl"):
                     path = os.path.join(root, fname)
                     instances.append(path)
-        return instances[2:3]
+        return instances[:1]
 
     def load_data(self, path):
         with open(path, "rb") as f:
@@ -70,7 +70,7 @@ class RNADataset(Dataset):
         final_data_list = self.samples
         for data_path in final_data_list:
             with open(data_path, "rb") as f:
-                load_data = cPickle.load(f)
+                load_data = pickle.load(f)
             max_len = max([x["length"] for x in load_data])
             if max_len == 160:
                 continue
@@ -104,7 +104,7 @@ class RNADataset(Dataset):
             data_seq_encode_pad_array,
         ) = preprocess_data(data, set_max_len)
 
-        contact = torch.tensor(contact_array).long()
+        contact = torch.tensor(contact_array).unsqueeze(1).long()
         data_name_list = torch.tensor(np.array(data_name_list))
         data_length_list = torch.tensor(data_length_list).long()
         data_seq_encode_pad = torch.tensor(data_seq_encode_pad_array).float()
