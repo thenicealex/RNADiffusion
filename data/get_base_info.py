@@ -89,7 +89,7 @@ if __name__ == "__main__":
     train_data_path = "/home/fkli/RNAdata/bpRNA_lasted/batching/train"
     test_data_path = "/home/fkli/RNAdata/bpRNA_lasted/batching/test"
     val_data_path = "/home/fkli/RNAdata/bpRNA_lasted/batching/val"
-    target_data_path = "/home/fkli/RNAdata/bpRNA_lasted/data"
+    target_data_path = "/home/fkli/RNAdata/bpRNA_lasted/binning"
     path_list = [train_data_path, test_data_path, val_data_path]
 
     for dpath in path_list:
@@ -107,9 +107,10 @@ if __name__ == "__main__":
             seq_max_len = max(seq_len_list)
             set_max_len = (seq_max_len // 80 + int(seq_max_len % 80 != 0)) * 80
             for seq in tqdm(data):
-                seq["base_info"] = get_base_info_matrix(
-                    seq["seq_raw"], seq["length"], set_max_len
-                )
+                seq["base_info"] = np.array(1)
+                # seq["base_info"] = get_base_info_matrix(
+                #     seq["seq_raw"], seq["length"], set_max_len
+                # )
 
             target_path = os.path.join(target_data_path, c, os.listdir(dpath)[k])
             print(f"target path is {target_path}\n")

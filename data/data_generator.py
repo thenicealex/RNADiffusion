@@ -1,274 +1,155 @@
 # -*- coding: utf-8 -*-
-import math
 import os
-from typing import List
-import torch
-import numpy as np
 import pickle
+import numpy as np
+from typing import Union, List
 from random import shuffle
-from torch.utils.data import Dataset
-from utils.data import encode_name, padding, seq2encoding
-from data.get_base_info import get_base_info_matrix
 
-seq_dict = {
-    "A": np.array([1, 0, 0, 0]),
-    "U": np.array([0, 1, 0, 0]),  # T or U
-    "C": np.array([0, 0, 1, 0]),
-    "G": np.array([0, 0, 0, 1]),
-    "R": np.array([1, 0, 0, 1]),
-    "Y": np.array([0, 1, 1, 0]),
-    "K": np.array([0, 1, 0, 1]),
-    "M": np.array([1, 0, 1, 0]),
-    "S": np.array([0, 0, 1, 1]),
-    "W": np.array([1, 1, 0, 0]),
-    "B": np.array([0, 1, 1, 1]),
-    "D": np.array([1, 1, 0, 1]),
-    "H": np.array([1, 1, 1, 0]),
-    "V": np.array([1, 0, 1, 1]),
-    "N": np.array([0, 0, 0, 0]),
-    "_": np.array([0, 0, 0, 0]),
-    "~": np.array([0, 0, 0, 0]),
-    ".": np.array([0, 0, 0, 0]),
-    "P": np.array([0, 0, 0, 0]),
-    "I": np.array([0, 0, 0, 0]),
-    "X": np.array([0, 0, 0, 0]),
-}
+import torch
+from torch.utils.data import Dataset
+from torch.nn import functional as F
+
+from utils.data import load_data, encode_name, padding, seq2encoding
 
 
 class RNADataset(Dataset):
-    def __init__(self, data_root: List[str], upsampling: bool = False) -> None:
-        if len(data_root) == 0:
-            raise ValueError("data_root should be a list of data path")
-        self.data_root = data_root
+    def __init__(
+        self, data_paths: Union[str, List[str]], upsampling: bool = False
+    ) -> None:
+        """
+        Initialize the RNA Dataset.
+
+        Args:
+            data_paths (Union[str, List[str]]): A single path or a list of paths to data directories.
+            upsampling (bool): Whether to perform upsampling on the data.
+        """
+        self.data_paths = [data_paths] if isinstance(data_paths, str) else data_paths
         self.upsampling = upsampling
+        self.samples = self._load_samples()
 
-        self.samples = []
-        for root in self.data_root:
-            print("Loading data from {}".format(root))
-            self.samples += self.make_dataset(root)
-
+    def _load_samples(self) -> List[str]:
+        samples = []
+        for path in self.data_paths:
+            print(f"Loading data from {path}")
+            samples += self._make_dataset(path)
         if self.upsampling:
-            self.samples = self.upsampling_data()
+            samples = self._upsample_data(samples)
+        return samples
 
-    def make_dataset(self, directory: str) -> List[str]:
+    def _make_dataset(self, directory: str) -> List[str]:
         instances = []
         directory = os.path.expanduser(directory)
         for root, _, fnames in sorted(os.walk(directory)):
             for fname in sorted(fnames):
-                if (
-                    fname.endswith(".cPickle")
-                    or fname.endswith(".pickle")
-                    or fname.endswith(".pkl")
-                ):
-                    path = os.path.join(root, fname)
-                    instances.append(path)
-        return instances[:1]
+                if fname.endswith((".cPickle", ".pickle", ".pkl", ".js", ".json")):
+                    instances.append(os.path.join(root, fname))
+        return instances
 
-    def load_data(self, path):
-        with open(path, "rb") as f:
-            load_data = pickle.load(f)
-        return load_data
-
-    def preprocess(self, data, set_max_len):
-        shuffle(data)
-        contact_list = [padding(item["contact"], set_max_len, axis=1) for item in data]
-        base_info_list = [item["base_info"] for item in data]
-        data_seq_raw_list = [item["seq_raw"].replace("Y", "N") for item in data]
-        data_length_list = [item["length"] for item in data]
-        data_name_len_max = max([len(item["name"]) for item in data])
-        data_name_list = [
-            padding(np.array(encode_name(item["name"])), data_name_len_max)
-            for item in data
-        ]
-        contact_array = np.stack(contact_list, axis=0)
-        base_info_array = np.stack(base_info_list, axis=0)
-
-        data_seq_encode_list = [seq2encoding(x) for x in data_seq_raw_list]
-        data_seq_encode_pad_list = [
-            padding(x, set_max_len) for x in data_seq_encode_list
-        ]
-        data_seq_encode_pad_array = np.stack(data_seq_encode_pad_list, axis=0)
-
-        return (
-            data_name_list,
-            data_seq_raw_list,
-            data_length_list,
-            contact_array,
-            base_info_array,
-            data_seq_encode_pad_array,
-        )
-
-    # for data balance, 4 times for 160~320 & 320~640
-    def upsampling_data(self):
-        augment_data_list = list()
-        final_data_list = self.samples
-        for data_path in final_data_list:
+    def _upsample_data(self, samples: List[str]) -> List[str]:
+        augment_data_list = []
+        for data_path in samples:
             with open(data_path, "rb") as f:
-                load_data = pickle.load(f)
-            max_len = max([x["length"] for x in load_data])
-            if max_len == 160:
-                continue
-            elif max_len == 320:
-                augment_data_list.append(data_path)
-            elif max_len == 640:
+                data = pickle.load(f)
+            max_len = max(item["length"] for item in data)
+            if max_len in {320, 640}:
                 augment_data_list.append(data_path)
 
         augment_data_list = list(
             np.random.choice(augment_data_list, 3 * len(augment_data_list))
         )
-        final_data_list.extend(augment_data_list)
-        shuffle(final_data_list)
-        return final_data_list
+        samples.extend(augment_data_list)
+        shuffle(samples)
+        return samples
+
+    def preprocess(self, index):
+        data_path = self.samples[index]
+        data = load_data(data_path)
+        max_len = max(item["length"] for item in data)
+        set_max_len = (max_len // 80 + int(max_len % 80 != 0)) * 80
+
+        contact_list = [item["contact"] for item in data]
+        base_info_list = [item["base_info"] for item in data]
+        raw_seq_list = [item["seq_raw"].replace("Y", "N") for item in data]
+        length_array = np.array([item["length"] for item in data])
+
+        padded_contact_array = [
+            padding(np.array(item), set_max_len, axis=1) for item in contact_list
+        ]
+        contact_array = np.stack(padded_contact_array, axis=0)
+
+        encoded_name_list = [encode_name(item["name"]) for item in data]
+        max_name_len = max([len(item) for item in encoded_name_list])
+        paddd_name_list = [
+            padding(np.array(item), max_name_len) for item in encoded_name_list
+        ]
+        name_array = np.stack(paddd_name_list, axis=0)
+
+        base_info_array = np.stack(base_info_list, axis=0)
+        encoded_seq_list = [seq2encoding(seq) for seq in raw_seq_list]
+        padded_encoded_seq_list = [
+            padding(seq, set_max_len) for seq in encoded_seq_list
+        ]
+        padded_encoded_seq_array = np.stack(padded_encoded_seq_list, axis=0)
+
+        return (
+            set_max_len,
+            name_array,
+            raw_seq_list,
+            length_array,
+            contact_array,
+            base_info_array,
+            padded_encoded_seq_array,
+        )
 
     def __len__(self) -> int:
-        "Denotes the total number of samples"
         return len(self.samples)
 
     def __getitem__(self, index: int):
-        batch_data_path = self.samples[index]
-        data = self.load_data(batch_data_path)
-        seq_max_len = max([x["length"] for x in data])
-        set_max_len = (seq_max_len // 80 + int(seq_max_len % 80 != 0)) * 80
 
         (
-            data_name_list,
-            data_seq_raw_list,
-            data_length_list,
+            set_max_len,
+            name_array,
+            raw_seq_list,
+            length_array,
             contact_array,
             base_info_array,
-            data_seq_encode_pad_array,
-        ) = self.preprocess(data, set_max_len)
+            padded_encoded_seq_array,
+        ) = self.preprocess(index)
 
-        contact = torch.tensor(contact_array).unsqueeze(1).long()
-        base_info = torch.tensor(base_info_array).float()
-        data_name_list = torch.tensor(np.array(data_name_list))
-        data_length_list = torch.tensor(data_length_list).long()
-        data_seq_encode_pad = torch.tensor(data_seq_encode_pad_array).float()
+        contact_tensor = torch.tensor(contact_array).unsqueeze(1).long()
+        base_info_tensor = torch.tensor(base_info_array).float()
+        name_tensor = torch.tensor(name_array)
+        length_tensor = torch.tensor(length_array).long()
+        padded_encoded_seq_tensor = torch.tensor(padded_encoded_seq_array).float()
 
         return (
-            data_name_list,
-            data_seq_raw_list,
-            data_length_list,
             set_max_len,
-            contact,
-            base_info,
-            data_seq_encode_pad,
+            name_tensor,
+            raw_seq_list,
+            length_tensor,
+            contact_tensor,
+            base_info_tensor,
+            padded_encoded_seq_tensor,
         )
 
-
-def generate_token_batch(alphabet, seq_strs):
-    batch_size = len(seq_strs)
-    max_len = max(len(seq_str) for seq_str in seq_strs)
-    tokens = torch.empty(
+    @staticmethod
+    def collate_fn(batch):
         (
-            batch_size,
-            max_len + int(alphabet.prepend_bos) + int(alphabet.append_eos),
-        ),
-        dtype=torch.int64,
-    )
-    tokens.fill_(alphabet.padding_idx)
-    for i, seq_str in enumerate(seq_strs):
-        if alphabet.prepend_bos:
-            tokens[i, 0] = alphabet.cls_idx
-        seq = torch.tensor([alphabet.get_idx(s) for s in seq_str], dtype=torch.int64)
-        tokens[
-            i,
-            int(alphabet.prepend_bos) : len(seq_str) + int(alphabet.prepend_bos),
-        ] = seq
-        if alphabet.append_eos:
-            tokens[i, len(seq_str) + int(alphabet.prepend_bos)] = alphabet.eos_idx
-    return tokens
+            set_max_len,
+            name_tensor,
+            raw_seq_list,
+            length_tensor,
+            contact_tensor,
+            base_info_tensor,
+            padded_encoded_seq_tensor,
+        ) = zip(*batch)
 
-
-def get_data_id(args):
-    return "bpRNA"
-
-
-def diff_collate_fn(batch):
-    (
-        contact,
-        base_info,
-        data_seq_raw_list,
-        data_length,
-        data_name_list,
-        set_max_len,
-        data_seq_encode_pad,
-    ) = zip(*batch)
-    if len(contact) == 1:
-        contact = contact[0]
-        base_info = base_info[0]
-        data_seq_raw = data_seq_raw_list[0]
-        data_length = data_length[0]
-        data_name = data_name_list[0]
-        set_max_len = set_max_len[0]
-        data_seq_encode_pad = data_seq_encode_pad[0]
-
-    else:
-        set_max_len = (
-            max(set_max_len) if isinstance(set_max_len, tuple) else set_max_len
+        return (
+            set_max_len[0],
+            name_tensor[0],
+            raw_seq_list[0],
+            length_tensor[0],
+            contact_tensor[0],
+            base_info_tensor[0],
+            padded_encoded_seq_tensor[0],
         )
-
-        contact_list = list()
-        for item in contact:
-            if item.shape[-1] < set_max_len:
-                item = np.pad(
-                    item,
-                    (0, set_max_len - item.shape[-1], 0, set_max_len - item.shape[-1]),
-                    "constant",
-                    0,
-                )
-                contact_list.append(item)
-            else:
-                contact_list.append(item)
-
-        base_info_list = list()
-        for item in base_info:
-            if item.shape[-1] < set_max_len:
-                item = np.pad(
-                    item,
-                    (0, set_max_len - item.shape[-1], 0, set_max_len - item.shape[-1]),
-                    "constant",
-                    0,
-                )
-                base_info_list.append(item)
-            else:
-                base_info_list.append(item)
-
-        data_seq_encode_pad_list = list()
-        for item in data_seq_encode_pad:
-            if item.shape[-1] < set_max_len:
-                item = np.pad(
-                    item,
-                    (0, set_max_len - item.shape[-1], 0, set_max_len - item.shape[-1]),
-                    "constant",
-                    0,
-                )
-                data_seq_encode_pad_list.append(item)
-            else:
-                data_seq_encode_pad_list.append(item)
-
-        contact = torch.cat(contact_list, dim=0)
-        base_info = torch.cat(base_info_list, dim=0)
-        data_seq_encode_pad = torch.cat(data_seq_encode_pad_list, dim=0)
-
-        data_seq_raw = list()
-        for item in data_seq_raw_list:
-            data_seq_raw.extend(item)
-
-        data_length = torch.cat(data_length, dim=0)
-
-        data_name = list()
-        for item in data_name_list:
-            data_name.extend(item)
-
-    # tokens = generate_token_batch_esm(data_seq_raw)
-
-    return (
-        contact,
-        base_info,
-        data_seq_raw,
-        data_length,
-        data_name,
-        set_max_len,
-        data_seq_encode_pad,
-    )

@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 import argparse
-from torch.utils.data import DataLoader
+from os.path import join
+
 import torch.optim as optim
 from torch.optim.lr_scheduler import MultiStepLR
-from os.path import join
-from data.data_generator import RNADataset, get_data_id
-
-from models.model import DiffusionRNA2dPrediction, get_model_id
-from optim.scheduler import LinearWarmupScheduler, get_optim_id
-from trainer import Trainer
+from torch.utils.data import DataLoader
 from pytorch_lightning import seed_everything
+
+from data.data_generator import RNADataset
+from models.model import DiffusionRNA2dPrediction
+from optim.scheduler import LinearWarmupScheduler
+from trainer import Trainer
 from models.rna_model.config import (
     TransformerConfig,
     OptimizerConfig,
@@ -20,72 +21,111 @@ from models.rna_model.config import (
     LoggingConfig,
 )
 
+# Set random seed for reproducibility
 seed_everything(42)
 
+# Constants
 MODEL_PATH = "/home/fkli/RNAm"
 DATA_PATH = "/home/fkli/RNAdata/bpRNA_lasted/data"
 
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(description="RNA Diffusion Model Training")
 
-def setup_args():
-    parser = argparse.ArgumentParser()
+    # Model parameters
+    parser.add_argument("--diffusion_steps", type=int, default=1000, help="Number of diffusion steps")
+    parser.add_argument("--num_classes", type=int, default=2, help="Number of classes")
+    parser.add_argument("--diffusion_dim", type=int, default=8, help="Dimension of diffusion")
+    parser.add_argument("--cond_dim", type=int, default=1, help="Conditioning dimension")
+    parser.add_argument("--dp_rate", type=float, default=0.0, help="Dropout rate")
+    parser.add_argument("--u_conditioner_ckpt", type=str, default="ufold_train_alldata.pt", help="U conditioner checkpoint")
+    parser.add_argument("--esm_conditioner_ckpt", type=str, default="RNA-ESM2-trans-2a100-mappro-KDNY-epoch_06-valid_F1_0.564.ckpt", help="ESM conditioner checkpoint")
 
-    # Model params
-    parser.add_argument("--diffusion_steps", type=int, default=1000)
-    parser.add_argument("--num_classes", type=int, default=2)
-    parser.add_argument("--diffusion_dim", type=int, default=8)
-    parser.add_argument("--cond_dim", type=int, default=1)
-    parser.add_argument("--dp_rate", type=float, default=0.0)
-    parser.add_argument(
-        "--u_conditioner_ckpt", type=str, default="ufold_train_alldata.pt"
-    )
-    parser.add_argument(
-        "--esm_conditioner_ckpt",
-        type=str,
-        default="RNA-ESM2-trans-2a100-mappro-KDNY-epoch_06-valid_F1_0.564.ckpt",
-    )
+    # Data parameters
+    parser.add_argument("--upsampling", type=eval, default=False, help="Whether to use upsampling")
 
-    # Data params
-    parser.add_argument("--upsampling", type=eval, default=False)
+    # Optimizer parameters
+    parser.add_argument("--optimizer", type=str, default="adam", help="Optimizer type")
+    parser.add_argument("--lr", type=float, default=1e-3, help="Learning rate")
+    parser.add_argument("--warmup", type=int, default=None, help="Warmup epochs")
+    parser.add_argument("--momentum", type=float, default=0.9, help="Momentum")
+    parser.add_argument("--momentum_sqr", type=float, default=0.999, help="Squared momentum")
+    parser.add_argument("--milestones", type=eval, default=[], help="Milestones for learning rate scheduler")
+    parser.add_argument("--gamma", type=float, default=0.1, help="Gamma for learning rate scheduler")
 
-    # Optim params
-    parser.add_argument("--optimizer", type=str, default="adam")
-    parser.add_argument("--lr", type=float, default=1e-3)
-    parser.add_argument("--warmup", type=int, default=None)
-    parser.add_argument("--momentum", type=float, default=0.9)
-    parser.add_argument("--momentum_sqr", type=float, default=0.999)
-    parser.add_argument("--milestones", type=eval, default=[])
-    parser.add_argument("--gamma", type=float, default=0.1)
+    # Training parameters
+    parser.add_argument("--batch_size", type=int, default=1, help="Batch size for training")
+    parser.add_argument("--eval_batch_size", type=int, default=1, help="Batch size for evaluation")
+    parser.add_argument("--num_workers", type=int, default=8, help="Number of workers for data loading")
+    parser.add_argument("--pin_memory", type=eval, default=False, help="Whether to pin memory")
+    parser.add_argument("--epochs", type=int, default=10, help="Number of training epochs")
+    parser.add_argument("--seed", type=int, default=1, help="Random seed")
+    parser.add_argument("--device", type=str, default="cuda:0", help="Device to use for training")
+    parser.add_argument("--parallel", type=str, default=None, choices={"dp"}, help="Parallelization strategy")
+    parser.add_argument("--resume", type=str, default=None, help="Path to resume checkpoint")
+    parser.add_argument("--dry_run", action="store_true", default=False, help="Perform a dry run")
 
-    # Train params
-    parser.add_argument("--batch_size", type=int, default=1)
-    parser.add_argument("--eval_batch_size", type=int, default=1)
-    parser.add_argument("--num_workers", type=int, default=8)
-    parser.add_argument("--pin_memory", type=eval, default=False)
-    parser.add_argument("--epochs", type=int, default=10)
-    parser.add_argument("--seed", type=int, default=1)
-    parser.add_argument("--device", type=str, default="cuda:0")
-    parser.add_argument("--parallel", type=str, default=None, choices={"dp"})
-    parser.add_argument("--resume", type=str, default=None)
-    parser.add_argument("--dry_run", action="store_true", default=False)
-
-    # Logging params
-    parser.add_argument("--name", type=str, default=None)
-    parser.add_argument("--project", type=str, default=None)
-    parser.add_argument("--eval_every", type=int, default=None)
-    parser.add_argument("--check_every", type=int, default=None)
-    parser.add_argument("--log_tb", type=eval, default=True)
-    parser.add_argument("--log_wandb", type=eval, default=True)
-    parser.add_argument("--log_home", type=str, default=None)
+    # Logging parameters
+    parser.add_argument("--name", type=str, default=None, help="Experiment name")
+    parser.add_argument("--project", type=str, default=None, help="Project name")
+    parser.add_argument("--eval_every", type=int, default=None, help="Evaluation frequency")
+    parser.add_argument("--check_every", type=int, default=None, help="Checkpoint frequency")
+    parser.add_argument("--log_tb", type=eval, default=True, help="Log to TensorBoard")
+    parser.add_argument("--log_wandb", type=eval, default=True, help="Log to Weights & Biases")
+    parser.add_argument("--log_home", type=str, default=None, help="Logging directory")
 
     return parser.parse_args()
 
+def create_data_loaders(args):
+    """Create data loaders for training, validation, and testing."""
+    train_dataset = RNADataset([join(DATA_PATH, "train")], upsampling=args.upsampling)
+    val_dataset = RNADataset([join(DATA_PATH, "val")])
+    test_dataset = RNADataset([join(DATA_PATH, "test")])
 
-if __name__ == "__main__":
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=args.num_workers,
+        pin_memory=args.pin_memory,
+        drop_last=True,
+    )
 
-    args = setup_args()
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=args.eval_batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        pin_memory=args.pin_memory,
+        drop_last=False,
+    )
 
-    # model
-    model_id = get_model_id(args)
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=args.eval_batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        pin_memory=args.pin_memory,
+        drop_last=False,
+    )
+
+    return train_loader, val_loader, test_loader
+
+def create_optimizer_and_schedulers(model, args):
+    """Create optimizer and learning rate schedulers."""
+    optimizer = optim.Adam(
+        model.parameters(), lr=args.lr, betas=(args.momentum, args.momentum_sqr)
+    )
+
+    scheduler_iter = LinearWarmupScheduler(optimizer, total_epoch=args.warmup) if args.warmup else None
+    scheduler_epoch = MultiStepLR(optimizer, milestones=args.milestones, gamma=args.gamma) if args.milestones else None
+
+    return optimizer, scheduler_iter, scheduler_epoch
+
+def main():
+    args = parse_arguments()
+
+    # Initialize model
     model = DiffusionRNA2dPrediction(
         num_classes=args.num_classes,
         diffusion_dim=args.diffusion_dim,
@@ -96,63 +136,19 @@ if __name__ == "__main__":
         esm_ckpt=args.esm_conditioner_ckpt,
         device=args.device,
     )
-    alphabet = model.get_alphabet()
 
-    # data
-    data_id = get_data_id(args)
-    train = RNADataset([join(DATA_PATH, "train")], upsampling=False)
-    val = RNADataset([join(DATA_PATH, "val")])
-    test = RNADataset([join(DATA_PATH, "test")])
+    # Create data loaders
+    train_loader, val_loader, test_loader = create_data_loaders(args)
 
-    train_loader = DataLoader(
-        train,
-        batch_size=args.batch_size,
-        shuffle=True,
-        num_workers=args.num_workers,
-        pin_memory=args.pin_memory,
-        drop_last=True,
-    )
+    # Create optimizer and schedulers
+    optimizer, scheduler_iter, scheduler_epoch = create_optimizer_and_schedulers(model, args)
 
-    val_loader = DataLoader(
-        val,
-        batch_size=args.batch_size,
-        shuffle=False,
-        num_workers=args.num_workers,
-        pin_memory=args.pin_memory,
-        drop_last=False,
-    )
-
-    test_loader = DataLoader(
-        test,
-        batch_size=args.batch_size,
-        shuffle=False,
-        num_workers=args.num_workers,
-        pin_memory=args.pin_memory,
-        drop_last=False,
-    )
-
-    # optimizer
-    optim_id = get_optim_id(args)
-    optimizer = optim.Adam(
-        model.parameters(), lr=args.lr, betas=(args.momentum, args.momentum_sqr)
-    )
-    if args.warmup is not None:
-        scheduler_iter = LinearWarmupScheduler(optimizer, total_epoch=args.warmup)
-    else:
-        scheduler_iter = None
-
-    if len(args.milestones) > 0:
-        scheduler_epoch = MultiStepLR(
-            optimizer, milestones=args.milestones, gamma=args.gamma
-        )
-    else:
-        scheduler_epoch = None
-
-    t = Trainer(
+    # Initialize trainer
+    trainer = Trainer(
         args=args,
-        data_id=data_id,
-        model_id=model_id,
-        optim_id=optim_id,
+        data_id="bpRNA",
+        model_id="DiT",
+        optim_id="adam",
         model=model,
         train_loader=train_loader,
         val_loader=val_loader,
@@ -162,4 +158,8 @@ if __name__ == "__main__":
         scheduler_epoch=scheduler_epoch,
     )
 
-    t.run()
+    # Start training
+    trainer.run()
+
+if __name__ == "__main__":
+    main()

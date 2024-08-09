@@ -2,12 +2,15 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
+import json
+import pickle
 
 label_dict = {
     ".": np.array([1, 0, 0]),
     "(": np.array([0, 1, 0]),
     ")": np.array([0, 0, 1]),
 }
+
 seq_dict = {
     "A": np.array([1, 0, 0, 0]),
     "U": np.array([0, 1, 0, 0]),  # T or U
@@ -48,35 +51,53 @@ def padding(array, maxlen, constant_values=-1, axis=0):
             array, (0, maxlen - len(array)), "constant", constant_values=constant_values
         )
 
-    a, b = array.shape
+    pad_width = [(0, maxlen - array.shape[0]), (0, 0)]
     if axis == 1:
-        return np.pad(array, ((0, maxlen - a), (0, maxlen - b)), "constant")
-    # np.pad(array, ((before_1,after_1),……,(before_n,after_n),module)
-    return np.pad(array, ((0, maxlen - a), (0, 0)), "constant")
+        pad_width[1] = (0, maxlen - array.shape[1])
 
-def seq2encoding(seq):
-    encoding = [seq_dict[char] for char in seq]
-    return np.array(encoding)
+    # np.pad(array, ((before_1,after_1),……,(before_n,after_n)),module)
+    return np.pad(array, pad_width, "constant")
+
+
+def seq2encoding(seq: str):
+    return np.array([seq_dict[char] for char in seq])
+
 
 def encoding2seq(arr):
-    seq = list()
-    for arr_row in list(arr):
-        if sum(arr_row) == 0:
-            seq.append("N")  # replace '.' to 'N'
-        else:
-            seq.append(char_dict[np.argmax(arr_row)])
-    return "".join(seq)
+    return "".join("N" if sum(row) == 0 else char_dict[np.argmax(row)] for row in arr)
 
 
 def contact_map_masks(data_lens, matrix_rep):
-    print(data_lens.shape)
-    print(matrix_rep.shape)
     n_seq = len(data_lens)
     assert matrix_rep.shape[0] == n_seq
-    for i in range(n_seq):
-        l = int(data_lens[i].cpu().numpy())
+    
+    # Convert data_lens to a NumPy array
+    lengths = np.array([int(l.cpu().numpy()) for l in data_lens])
+    
+    for i, l in range(lengths):
         matrix_rep[i, :l, :l] = 1
+        
     return matrix_rep
+
+
+def load_data(file_path: str):
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"{file_path} not found")
+
+    if file_path.endswith(".js") or file_path.endswith(".json"):
+        with open(file_path, "r") as f:
+            data = json.load(f)
+    elif (
+        file_path.endswith(".pkl")
+        or file_path.endswith(".pickle")
+        or file_path.endswith(".cPickle")
+    ):
+        with open(file_path, "rb") as f:
+            data = pickle.load(f)
+    else:
+        raise ValueError(f"Unsupported file format: {file_path}")
+
+    return data
 
 
 # return index of contact pairing, index start from 0

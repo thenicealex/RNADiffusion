@@ -1,21 +1,19 @@
 # -*- coding: utf-8 -*-
 import os
-import torch
+import sys
+import time
+import wandb
+import pickle
+import pathlib
 import numpy as np
 import pandas as pd
 from os.path import join
-import time
-import pickle
-import sys
 
-sys.path.append("/home/fkli/Projects/RNADiffusion")
-
+import torch
 from torch.utils.tensorboard import SummaryWriter
-import wandb
-import pathlib
 
-from utils.tables import get_args_table, get_metric_table
 from utils.dicts import clean_dict
+from utils.tables import get_args_table, get_metric_table
 from utils.data import contact_map_masks, decode_name
 from utils.loss import bce_loss, evaluate_f1_precision_recall
 from utils.loss import (
@@ -24,37 +22,55 @@ from utils.loss import (
     rna_evaluation,
 )
 
+
+sys.path.append("/home/fkli/Projects/RNADiffusion")
+
 HOME = str(pathlib.Path.home())
 
 
 class EarlyStopping(object):
+    """
+    Early stopping to terminate training when validation performance stops improving.
+    """
+
     def __init__(self, patience=5, min_delta=1e-3):
+        """
+        Args:
+            patience (int): How long to wait after last time validation score improved.
+            min_delta (float): Minimum change in the monitored quantity to qualify as an improvement.
+        """
         self.patience = patience
         self.min_delta = min_delta
-        self.best_score = 0.0
+        self.best_score = float("-inf")
         self.best_epoch = None
         self.counter = 0
-        self.save_name = None
         self.early_stop = False
-        self.ckpt_save = False
 
     def __call__(self, val_f1_score, current_epoch):
-        if val_f1_score > self.best_score:
+        """
+        Args:
+            val_f1_score (float): The current validation F1 score.
+            current_epoch (int): The current epoch number.
+        """
+        if val_f1_score > self.best_score + self.min_delta:
             self.best_score = val_f1_score
             self.best_epoch = current_epoch
+            self.counter = 0
             self.ckpt_save = True
             self.save_name = f"best_checkpoint_{self.best_epoch + 1}.pt"
-            self.counter = 0
 
-        elif val_f1_score - self.best_score < self.min_delta:
-            self.ckpt_save = False
+        else:
             self.counter += 1
+            self.ckpt_save = False
             print(f"EarlyStopping counter: {self.counter} out of {self.patience}")
             if self.counter >= self.patience:
                 self.early_stop = True
 
 
 class BaseTrainer(object):
+    """
+    Base class for training models.
+    """
 
     def __init__(
         self,
@@ -67,8 +83,7 @@ class BaseTrainer(object):
         check_every,
         save_name=None,
     ):
-
-        # Objects
+        # Model and optimization
         self.model = model
         self.optimizer = optimizer
         self.scheduler_iter = scheduler_iter
@@ -102,45 +117,39 @@ class BaseTrainer(object):
     def test(self, epoch):
         raise NotImplementedError()
 
-    def log_fn(self, epoch, train_dict, val_dict, test_dict):
+    def log_fn(self, epoch, train_metrics, val_metrics, test_metrics):
         raise NotImplementedError()
 
-    def log_train_metrics(self, train_dict):
-        if len(self.train_metrics) == 0:
-            for metric_name, metric_value in train_dict.items():
-                self.train_metrics[metric_name] = [metric_value]
-        else:
-            for metric_name, metric_value in train_dict.items():
-                self.train_metrics[metric_name].append(metric_value)
+    def log_train_metrics(self, train_metrics):
+        self._log_metrics(self.train_metrics, train_metrics)
 
-    def log_eval_metrics(self, eval_dict):
-        if len(self.eval_metrics) == 0:
-            for metric_name, metric_value in eval_dict.items():
-                self.eval_metrics[metric_name] = [metric_value]
-        else:
-            for metric_name, metric_value in eval_dict.items():
-                self.eval_metrics[metric_name].append(metric_value)
+    def log_eval_metrics(self, eval_metrics):
+        self._log_metrics(self.eval_metrics, eval_metrics)
 
-    def log_test_metrics(self, test_dict):
-        if test_dict is not None:
-            if len(self.test_metrics) == 0:
-                for metric_name, metric_value in test_dict.items():
-                    self.test_metrics[metric_name] = [metric_value]
-            else:
-                for metric_name, metric_value in test_dict.items():
-                    self.test_metrics[metric_name].append(metric_value)
+    def log_test_metrics(self, test_metrics):
+        if test_metrics:
+            self._log_metrics(self.test_metrics, test_metrics)
         else:
-            print("test_dict is empty!")
+            ValueError("test_metrics is empty!")
+
+    def _log_metrics(self, metrics_dict, new_metrics):
+        if not metrics_dict:
+            metrics_dict.update(
+                {
+                    metric_name: [metric_value]
+                    for metric_name, metric_value in new_metrics.items()
+                }
+            )
+        else:
+            for metric_name, metric_value in new_metrics.items():
+                metrics_dict[metric_name].append(metric_value)
 
     def create_folders(self):
-        # Create log folder
-        if not os.path.exists(self.log_path):
-            os.makedirs(self.log_path)
+        os.makedirs(self.log_path, exist_ok=True)
         print("Storing logs in:", self.log_path)
 
-        # Create check folder
-        if self.check_every is not None and not os.path.exists(self.check_path):
-            os.makedirs(self.check_path)
+        if self.check_every is not None:
+            os.makedirs(self.check_path, exist_ok=True)
             print("Storing checkpoints in:", self.check_path)
 
     def save_args(self, args):
@@ -157,31 +166,33 @@ class BaseTrainer(object):
     def save_metrics(self):
 
         # Save metrics
-        with open(join(self.log_path, "metrics_train.pickle"), "wb") as f:
-            pickle.dump(self.train_metrics, f)
-        with open(join(self.log_path, "metrics_eval.pickle"), "wb") as f:
-            pickle.dump(self.eval_metrics, f)
-        with open(join(self.log_path, "metrics_test.pickle"), "wb") as f:
-            pickle.dump(self.test_metrics, f)
+        self._save_pickle(self.train_metrics, "metrics_train.pickle")
+        self._save_pickle(self.eval_metrics, "metrics_eval.pickle")
+        self._save_pickle(self.test_metrics, "metrics_test.pickle")
 
         # Save metrics table
-        metric_table = get_metric_table(
-            self.train_metrics, epochs=list(range(1, self.current_epoch + 2))
+        self._save_metrics_table(
+            self.train_metrics,
+            "metrics_train.txt",
+            list(range(1, self.current_epoch + 2)),
         )
-        with open(join(self.log_path, "metrics_train.txt"), "w") as f:
-            f.write(str(metric_table))
-        metric_table = get_metric_table(
-            self.eval_metrics, epochs=[e + 1 for e in self.eval_epochs]
+        self._save_metrics_table(
+            self.eval_metrics, "metrics_eval.txt", [e + 1 for e in self.eval_epochs]
         )
-        with open(join(self.log_path, "metrics_eval.txt"), "w") as f:
-            f.write(str(metric_table))
-        metric_table = get_metric_table(
-            self.test_metrics, epochs=[self.current_epoch + 1]
+        self._save_metrics_table(
+            self.test_metrics, "metrics_test.txt", [self.current_epoch + 1]
         )
-        with open(join(self.log_path, "metrics_test.txt"), "w") as f:
+
+    def _save_pickle(self, data, filename):
+        with open(join(self.log_path, filename), "wb") as f:
+            pickle.dump(data, f)
+
+    def _save_metrics_table(self, metrics, filename, epochs):
+        metric_table = get_metric_table(metrics, epochs=epochs)
+        with open(join(self.log_path, filename), "w") as f:
             f.write(str(metric_table))
 
-    def checkpoint_save(self, name="checkpoint.pt"):
+    def save_checkpoint(self, name="checkpoint.pt"):
         checkpoint = {
             "current_epoch": self.current_epoch,
             "train_metrics": self.train_metrics,
@@ -198,7 +209,7 @@ class BaseTrainer(object):
         }
         torch.save(checkpoint, join(self.check_path, name))
 
-    def checkpoint_load(self, check_path, name="checkpoint.pt"):
+    def load_checkpoint(self, check_path, name="checkpoint.pt"):
         checkpoint = torch.load(join(check_path, name))
         self.current_epoch = checkpoint["current_epoch"]
         self.train_metrics = checkpoint["train_metrics"]
@@ -215,67 +226,67 @@ class BaseTrainer(object):
         for epoch in range(self.current_epoch, epochs):
 
             # Train
-            train_dict = self.train(epoch)
-            self.log_train_metrics(train_dict)
+            train_metrics = self.train(epoch)
+            self.log_train_metrics(train_metrics)
 
-            # val
+            # validation
             if (epoch + 1) % self.eval_every == 0:
-                val_dict = self.validation(epoch)
-                self.early_stopping(val_dict["f1"], epoch)
+                val_metrics = self.validation(epoch)
+                self.early_stopping(val_metrics["f1"], epoch)
                 if self.early_stopping.ckpt_save:
-                    self.checkpoint_save(name=self.early_stopping.save_name)
-                self.log_eval_metrics(val_dict)
+                    self.save_checkpoint(name=self.early_stopping.save_name)
+                self.log_eval_metrics(val_metrics)
                 self.eval_epochs.append(epoch)
             else:
-                val_dict = None
+                val_metrics = None
 
             # test
             if (epoch + 1) == epochs:
                 if self.early_stopping.save_name is not None:
-                    self.checkpoint_load(
+                    self.load_checkpoint(
                         self.check_path, name=self.early_stopping.save_name
                     )
                     print(f"load best checkpoint:{self.early_stopping.save_name}")
                 else:
                     print("load last checkpoint")
-                test_dict, f1_pre_rec_df = self.test(epoch)
+                val_metrics, f1_pre_rec_df = self.test(epoch)
                 f1_pre_rec_df.to_csv(
                     join(self.log_path, f"{self.save_name}.csv"),
                     index=False,
                     header=False,
                 )
-                self.log_test_metrics(test_dict)
+                self.log_test_metrics(val_metrics)
             elif self.early_stopping.early_stop:
                 print("Early stopping")
                 if self.early_stopping.save_name is not None:
-                    self.checkpoint_load(
+                    self.load_checkpoint(
                         self.check_path, name=self.early_stopping.save_name
                     )
                     print(f"load best checkpoint:{self.early_stopping.save_name}")
                 else:
                     print("load last checkpoint")
-                test_dict, f1_pre_rec_df = self.test(epoch)
+                val_metrics, f1_pre_rec_df = self.test(epoch)
                 f1_pre_rec_df.to_csv(
                     join(self.log_path, f"{self.save_name}.csv"),
                     index=False,
                     header=True,
                 )
-                self.log_test_metrics(test_dict)
+                self.log_test_metrics(val_metrics)
                 # Log
                 self.save_metrics()
-                self.log_fn(epoch, train_dict, val_dict, test_dict)
+                self.log_fn(epoch, train_metrics, val_metrics, val_metrics)
                 break
             else:
-                test_dict = None
+                val_metrics = None
 
             # Log
             self.save_metrics()
-            self.log_fn(epoch, train_dict, val_dict, test_dict)
+            self.log_fn(epoch, train_metrics, val_metrics, val_metrics)
 
             # Checkpoint
             self.current_epoch += 1
             if (epoch + 1) % self.check_every == 0:
-                self.checkpoint_save()
+                self.save_checkpoint()
 
 
 class DiffusionTrainer(BaseTrainer):
@@ -306,26 +317,15 @@ class DiffusionTrainer(BaseTrainer):
         scheduler_iter,
         scheduler_epoch,
     ):
-
-        if args.log_home is None:
-            self.log_base = join(HOME, "logs", "RNADiffusion")
-        else:
-            self.log_base = join(args.log_home, "logs", "RNADiffusion")
-
-        if args.eval_every is None:
-            args.eval_every = args.epochs
-        if args.check_every is None:
-            args.check_every = args.epochs
-        if args.name is None:
-            args.name = time.strftime("%Y-%m-%d_%H-%M-%S")
-
-        if args.project is None:
-            args.project = "RNADiffusion"
+        self.log_base = join(args.log_home or HOME, "logs", "RNADiffusion")
+        args.eval_every = args.eval_every or args.epochs
+        args.check_every = args.check_every or args.epochs
+        args.name = args.name or time.strftime("%Y-%m-%d_%H-%M-%S")
+        args.project = args.project or "RNADiffusion"
 
         save_name = (
             f'{args.name}.bpRNA.seed_{args.seed}.{time.strftime("%Y-%m-%d_%H-%M-%S")}'
         )
-        model.to(args.device)
 
         super(DiffusionTrainer, self).__init__(
             model=model,
@@ -372,57 +372,45 @@ class DiffusionTrainer(BaseTrainer):
                     dir=self.log_path,
                 )
 
-    def log_fn(self, epoch, train_dict, val_dict, test_dict):
-
+    def log_metrics(self, epoch, train_metrics, val_metrics, test_metrics):
         if not self.dry_run:
-            # Tensorboard
             if self.args.log_tb:
-                for metric_name, metric_value in train_dict.items():
-                    self.writer.add_scalar(
-                        "train/{}".format(metric_name),
-                        metric_value,
-                        global_step=epoch + 1,
-                    )
-
-                if val_dict:
-                    for metric_name, metric_value in val_dict.items():
-                        self.writer.add_scalar(
-                            "val/{}".format(metric_name),
-                            metric_value,
-                            global_step=epoch + 1,
-                        )
-
-                if test_dict:
-                    for metric_name, metric_value in test_dict.items():
-                        self.writer.add_scalar(
-                            "test/{}".format(metric_name),
-                            metric_value,
-                            global_step=epoch + 1,
-                        )
-
-            # Weights & Biases
+                self._log_to_tensorboard(
+                    epoch, train_metrics, val_metrics, test_metrics
+                )
             if self.args.log_wandb:
-                for metric_name, metric_value in train_dict.items():
-                    wandb.log(
-                        {"train/{}".format(metric_name): metric_value}, step=epoch + 1
-                    )
-                if val_dict:
-                    for metric_name, metric_value in val_dict.items():
-                        wandb.log(
-                            {"val/{}".format(metric_name): metric_value}, step=epoch + 1
-                        )
-                if test_dict:
-                    metric_name_list = []
-                    metric_value_list = []
-                    for metric_name, metric_value in test_dict.items():
-                        metric_name_list.append(metric_name)
-                        metric_value_list.append(metric_value)
-                        table = wandb.Table(
-                            columns=metric_name_list, data=[metric_value_list]
-                        )
-                        wandb.log({"test": table})
-        else:
-            pass
+                self._log_to_wandb(epoch, train_metrics, val_metrics, test_metrics)
+
+    def _log_to_tensorboard(self, epoch, train_metrics, val_metrics, test_metrics):
+        for metric_name, metric_value in train_metrics.items():
+            self.writer.add_scalar(
+                f"train/{metric_name}", metric_value, global_step=epoch + 1
+            )
+        if val_metrics:
+            for metric_name, metric_value in val_metrics.items():
+                self.writer.add_scalar(
+                    f"val/{metric_name}", metric_value, global_step=epoch + 1
+                )
+        if test_metrics:
+            for metric_name, metric_value in test_metrics.items():
+                self.writer.add_scalar(
+                    f"test/{metric_name}", metric_value, global_step=epoch + 1
+                )
+
+    def _log_to_wandb(self, epoch, train_metrics, val_metrics, test_metrics):
+        for metric_name, metric_value in train_metrics.items():
+            wandb.log({f"train/{metric_name}": metric_value}, step=epoch + 1)
+        if val_metrics:
+            for metric_name, metric_value in val_metrics.items():
+                wandb.log({f"val/{metric_name}": metric_value}, step=epoch + 1)
+        if test_metrics:
+            metric_name_list = []
+            metric_value_list = []
+            for metric_name, metric_value in test_metrics.items():
+                metric_name_list.append(metric_name)
+                metric_value_list.append(metric_value)
+                table = wandb.Table(columns=metric_name_list, data=[metric_value_list])
+                wandb.log({"test": table})
 
     def resume(self):
         resume_path = join(
@@ -431,289 +419,265 @@ class DiffusionTrainer(BaseTrainer):
             self.args.resume,
             "check",
         )
-        self.checkpoint_load(resume_path)
+        self.load_checkpoint(resume_path)
         for epoch in range(self.current_epoch):
-            train_dict = {}
-            for metric_name, metric_values in self.train_metrics.items():
-                train_dict[metric_name] = metric_values[epoch]
-
-            if epoch in self.eval_epochs:
-                val_dict = {}
-                for metric_name, metric_values in self.eval_metrics.items():
-                    val_dict[metric_name] = metric_values[self.eval_epochs.index(epoch)]
-            else:
-                val_dict = None
-
-            if (epoch + 1) == self.args.epochs:
-                test_dict = {}
-                for metric_name, metric_values in self.test_metrics.items():
-                    test_dict[metric_name] = metric_values[epoch]
-            else:
-                test_dict = None
-
-            self.log_fn(
-                epoch, train_dict=train_dict, val_dict=val_dict, test_dict=test_dict
+            train_metrics = {
+                metric_name: metric_values[epoch]
+                for metric_name, metric_values in self.train_metrics.items()
+            }
+            val_metrics = (
+                {
+                    metric_name: metric_values[self.eval_epochs.index(epoch)]
+                    for metric_name, metric_values in self.eval_metrics.items()
+                }
+                if epoch in self.eval_epochs
+                else None
+            )
+            test_metrics = (
+                {
+                    metric_name: metric_values[epoch]
+                    for metric_name, metric_values in self.test_metrics.items()
+                }
+                if (epoch + 1) == self.args.epochs
+                else None
+            )
+            self.log_metrics(
+                epoch,
+                train_metrics=train_metrics,
+                val_metrics=val_metrics,
+                test_metrics=test_metrics,
             )
 
     def run(self):
         if self.args.resume:
             self.resume()
-        super(DiffusionTrainer, self).run(epochs=self.args.epochs)
-
-
-class DataParallelDistribution(torch.nn.DataParallel):
-    """
-    A DataParallel wrapper for Distribution.
-    To be used instead of nn.DataParallel for Distribution objects.
-    """
-
-    def log_prob(self, *args, **kwargs):
-        return self.forward(*args, mode="log_prob", **kwargs)
-
-    def sample(self, *args, **kwargs):
-        return self.module.sample(*args, **kwargs)
-
-    def sample_with_log_prob(self, *args, **kwargs):
-        return self.module.sample_with_log_prob(*args, **kwargs)
+        super().run(epochs=self.args.epochs)
 
 
 class Trainer(DiffusionTrainer):
 
     def train(self, epoch):
         self.model.train()
-        loss_sum = 0.0
-        loss_count = 0
+        total_loss = 0.0
+        total_samples = 0
         device = self.args.device
+
         for _, (
             _,
-            data_seq_raw,
-            data_length,
+            raw_sequence,
+            sequence_length,
             set_max_len,
-            contact,
+            contact_map,
             base_info,
-            data_seq_encoding,
+            sequence_encoding,
         ) in enumerate(self.train_loader):
             self.optimizer.zero_grad()
-            contact = contact.squeeze(0).to(device)
+            contact_map = contact_map.squeeze(0).to(device)
             base_info = base_info.squeeze(0).to(device)
-            matrix_rep = torch.zeros_like(contact)
-            data_length = data_length.squeeze(0).to(device)
-            # data_seq_raw = data_seq_raw.to(device)
-            data_seq_encoding = data_seq_encoding.squeeze(0).to(device)
-            contact_masks = contact_map_masks(data_length, matrix_rep).to(device)
+            sequence_length = sequence_length.squeeze(0).to(device)
+            sequence_encoding = sequence_encoding.squeeze(0).to(device)
+            matrix_rep = torch.zeros_like(contact_map)
+            contact_masks = contact_map_masks(sequence_length, matrix_rep).to(device)
 
             loss = self.model(
-                contact,
+                contact_map,
                 base_info,
-                data_seq_raw,
+                raw_sequence,
                 contact_masks,
                 set_max_len,
-                data_seq_encoding,
+                sequence_encoding,
             )
             loss.backward()
-
             self.optimizer.step()
             if self.scheduler_iter:
                 self.scheduler_iter.step()
-            loss_sum += loss.detach().cpu().item() * len(contact)
-            loss_count += len(contact)
+
+            total_loss += loss.detach().cpu().item() * len(contact_map)
+            total_samples += len(contact_map)
             print(
-                "Training. Epoch: {}/{}, Bits/dim: {:.5f}".format(
-                    epoch + 1, self.args.epochs, loss_sum / loss_count
-                ),
-                end="\n",
+                f"Training. Epoch: {epoch + 1}/{self.args.epochs}, Bits/dim: {total_loss / total_samples:.5f}\n"
             )
 
         if self.scheduler_epoch:
             self.scheduler_epoch.step()
-        return {"bpd": loss_sum / loss_count}
+        return {"bpd": total_loss / total_samples}
 
     def validation(self, epoch):
         self.model.eval()
-
         device = self.args.device
+        total_loss = 0.0
+        total_samples = 0
+        auc_score = 0.0
+        auc_count = 0
+        f1_scores = []
+        mcc_scores = []
         with torch.no_grad():
-            loss_count = 0
-            val_loss_sum = 0.0
-            auc_score = 0.0
-            auc_count = 0
-            val_no_train = list()
-            mcc_no_train = list()
-
             for _, (
                 _,
-                data_seq_raw,
-                data_length,
+                raw_sequence,
+                sequence_length,
                 set_max_len,
-                contact,
+                contact_map,
                 base_info,
-                data_seq_encoding,
+                sequence_encoding,
             ) in enumerate(self.val_loader):
-                contact = contact.squeeze(0)
+                contact_map = contact_map.squeeze(0)
                 base_info = base_info.squeeze(0).to(device)
-                matrix_rep = torch.zeros_like(contact)
-                data_length = data_length.squeeze(0).to(device)
-                # data_seq_raw = data_seq_raw.to(device)
-                data_seq_encoding = data_seq_encoding.squeeze(0).to(device)
-                contact_masks = contact_map_masks(data_length, matrix_rep).to(device)
+                sequence_length = sequence_length.squeeze(0).to(device)
+                sequence_encoding = sequence_encoding.squeeze(0).to(device)
+                matrix_rep = torch.zeros_like(contact_map)
+                contact_masks = contact_map_masks(sequence_length, matrix_rep).to(
+                    device
+                )
 
                 # calculate contact loss
-                batch_size = contact.shape[0]
+                batch_size = contact_map.shape[0]
                 pred_x0, _ = self.model.sample(
                     batch_size,
                     base_info,
-                    data_seq_raw,
+                    raw_sequence,
                     set_max_len,
                     contact_masks,
-                    data_seq_encoding,
+                    sequence_encoding,
                 )
 
                 pred_x0 = pred_x0.cpu().float()
-                val_loss_sum += bce_loss(pred_x0.float(), contact.float()).cpu().item()
-                loss_count += len(contact)
-                auc_score += calculate_auc(contact.float(), pred_x0)
+                total_loss += (
+                    bce_loss(pred_x0.float(), contact_map.float()).cpu().item()
+                )
+                total_samples += len(contact_map)
+                auc_score += calculate_auc(contact_map.float(), pred_x0)
                 auc_count += 1
-                val_no_train_tmp = list(
-                    map(
-                        lambda i: evaluate_f1_precision_recall(
-                            pred_x0[i].squeeze(), contact.float()[i].squeeze()
-                        ),
-                        range(pred_x0.shape[0]),
+
+                f1_scores.extend(
+                    evaluate_f1_precision_recall(
+                        pred_x0[i].squeeze(), contact_map.float()[i].squeeze()
                     )
+                    for i in range(pred_x0.shape[0])
                 )
-                val_no_train += val_no_train_tmp
 
-                mcc_no_train_tmp = list(
-                    map(
-                        lambda i: calculate_mattews_correlation_coefficient(
-                            pred_x0[i].squeeze(), contact.float()[i].squeeze()
-                        ),
-                        range(pred_x0.shape[0]),
+                mcc_scores.extend(
+                    calculate_mattews_correlation_coefficient(
+                        pred_x0[i].squeeze(), contact_map.float()[i].squeeze()
                     )
+                    for i in range(pred_x0.shape[0])
                 )
-                mcc_no_train += mcc_no_train_tmp
 
-            val_precision, val_recall, val_f1 = zip(*val_no_train)
-
+            val_precision, val_recall, val_f1 = zip(*f1_scores)
             val_precision = np.average(np.nan_to_num(np.array(val_precision)))
             val_recall = np.average(np.nan_to_num(np.array(val_recall)))
             val_f1 = np.average(np.nan_to_num(np.array(val_f1)))
-
-            mcc_final = np.average(np.nan_to_num(np.array(mcc_no_train)))
+            mcc_final = np.average(np.nan_to_num(np.array(mcc_scores)))
 
             print("#" * 80)
             print("Average val F1 score: ", round(val_f1, 3))
             print("Average val precision: ", round(val_precision, 3))
             print("Average val recall: ", round(val_recall, 3))
-            print("#" * 80)
             print("Average val MCC", round(mcc_final, 3))
             print("#" * 80)
-            print("")
+
         return {
             "f1": val_f1,
             "precision": val_precision,
             "recall": val_recall,
             "auc_score": auc_score / auc_count,
             "mcc": mcc_final,
-            "bce_loss": val_loss_sum / loss_count,
+            "bce_loss": total_loss / total_samples,
         }
 
     def test(self, epoch):
         self.model.eval()
         device = self.args.device
-        with torch.no_grad():
-            test_no_train = list()
-            total_name_list = list()
-            total_length_list = list()
+        test_results = []
+        total_name_list = []
+        total_length_list = []
 
+        with torch.no_grad():
             for _, (
                 data_name,
-                data_seq_raw,
-                data_length,
+                raw_sequence,
+                sequence_length,
                 set_max_len,
-                contact,
+                contact_map,
                 base_info,
-                data_seq_encoding,
+                sequence_encoding,
             ) in enumerate(self.test_loader):
-                data_length = data_length.squeeze(0).to(device)
+                sequence_length = sequence_length.squeeze(0).to(device)
                 data_name_list = [
                     list(filter(lambda x: x != -1, item.numpy()))
                     for item in data_name.squeeze(0)
                 ]
                 total_name_list += [decode_name(item) for item in data_name_list]
-                total_length_list += [item.item() for item in data_length]
+                total_length_list += [item.item() for item in sequence_length]
 
-                contact = contact.squeeze(0)
+                contact_map = contact_map.squeeze(0)
                 base_info = base_info.squeeze(0).to(device)
-                matrix_rep = torch.zeros_like(contact)
-                # data_seq_raw = data_seq_raw.to(device)
                 data_seq_encoding = data_seq_encoding.squeeze(0).to(device)
-                contact_masks = contact_map_masks(data_length, matrix_rep).to(device)
+                matrix_rep = torch.zeros_like(contact_map)
+                contact_masks = contact_map_masks(sequence_length, matrix_rep).to(
+                    device
+                )
 
                 # calculate contact loss
-                batch_size = contact.shape[0]
+                batch_size = contact_map.shape[0]
                 pred_x0, _ = self.model.sample(
                     batch_size,
                     base_info,
-                    data_seq_raw,
+                    raw_sequence,
                     set_max_len,
                     contact_masks,
-                    data_seq_encoding,
+                    sequence_encoding,
                 )
 
                 pred_x0 = pred_x0.cpu().float()
 
-                test_no_train_tmp = list(
-                    map(
-                        lambda i: rna_evaluation(
-                            pred_x0[i].squeeze(), contact.float()[i].squeeze()
-                        ),
-                        range(pred_x0.shape[0]),
+                test_results.extend(
+                    rna_evaluation(
+                        pred_x0[i].squeeze(), contact_map.float()[i].squeeze()
                     )
+                    for i in range(pred_x0.shape[0])
                 )
-                test_no_train += test_no_train_tmp
 
-            accuracy, prec, recall, sens, spec, F1, MCC = zip(*test_no_train)
+            accuracy, precision, recall, sens, spec, f1, mcc = zip(*test_results)
 
-            f1_pre_rec_df = pd.DataFrame(
+            results_df = pd.DataFrame(
                 {
                     "name": total_name_list,
                     "length": total_length_list,
                     "accuracy": list(np.array(accuracy)),
-                    "precision": list(np.array(prec)),
+                    "precision": list(np.array(precison)),
                     "recall": list(np.array(recall)),
                     "sensitivity": list(np.array(sens)),
                     "specificity": list(np.array(spec)),
-                    "f1": list(np.array(F1)),
-                    "mcc": list(np.array(MCC)),
+                    "f1": list(np.array(f1)),
+                    "mcc": list(np.array(mcc)),
                 }
             )
 
             accuracy = np.average(np.nan_to_num(np.array(accuracy)))
-            precision = np.average(np.nan_to_num(np.array(prec)))
+            precision = np.average(np.nan_to_num(np.array(precision)))
             recall = np.average(np.nan_to_num(np.array(recall)))
             sensitivity = np.average(np.nan_to_num(np.array(sens)))
             specificity = np.average(np.nan_to_num(np.array(spec)))
-            F1 = np.average(np.nan_to_num(np.array(F1)))
-            MCC = np.average(np.nan_to_num(np.array(MCC)))
+            f1 = np.average(np.nan_to_num(np.array(f1)))
+            mcc = np.average(np.nan_to_num(np.array(mcc)))
 
             print("#" * 40)
             print("Average testing accuracy: ", round(accuracy, 3))
-            print("Average testing F1 score: ", round(F1, 3))
+            print("Average testing F1 score: ", round(f1, 3))
             print("Average testing precision: ", round(precision, 3))
             print("Average testing recall: ", round(recall, 3))
             print("Average testing sensitivity: ", round(sensitivity, 3))
             print("Average testing specificity: ", round(specificity, 3))
+            print("Average testing MCC", round(mcc, 3))
             print("#" * 40)
-            print("Average testing MCC", round(MCC, 3))
-            print("#" * 40)
-            print("")
+
         return {
-            "f1": F1,
+            "f1": f1,
             "precision": precision,
             "recall": recall,
             "sensitivity": sensitivity,
             "specificity": specificity,
             "accuracy": accuracy,
-            "mcc": MCC,
-        }, f1_pre_rec_df
+            "mcc": mcc,
+        }, results_df

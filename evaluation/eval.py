@@ -124,15 +124,15 @@ if __name__ == "__main__":
     if not config.dry_run:
         wandb.init(project=config.project_name, name=name, config=config.toDict(), dir=save_path)
 
-    test_dict, result_df = evaluation(config, model, test_loader)
+    val_metrics, result_df = evaluation(config, model, test_loader)
 
     result_df.to_csv(join(save_path, f'{name}.csv'), index=False, header=True)
-    test_metrics = log_eval_metrics(test_dict)
+    test_metrics = log_eval_metrics(val_metrics)
     if not config.dry_run:
         save_metrics(test_metrics, save_path)
         metric_name_list = []
         metric_value_list = []
-        for metric_name, metric_value in test_dict.items():
+        for metric_name, metric_value in val_metrics.items():
             metric_name_list.append(metric_name)
             metric_value_list.append(metric_value)
             table = wandb.Table(columns=metric_name_list, data=[metric_value_list])

@@ -30,13 +30,13 @@ def clean_dict(d, keys):
     return d2
 
 
-def log_eval_metrics(eval_dict):
+def log_eval_metrics(eval_metrics):
     eval_metrics = {}
     if len(eval_metrics) == 0:
-        for metric_name, metric_value in eval_dict.items():
+        for metric_name, metric_value in eval_metrics.items():
             eval_metrics[metric_name] = [metric_value]
     else:
-        for metric_name, metric_value in eval_dict.items():
+        for metric_name, metric_value in eval_metrics.items():
             eval_metrics[metric_name].append(metric_value)
     return eval_metrics
 
