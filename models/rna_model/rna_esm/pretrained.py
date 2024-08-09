@@ -396,7 +396,7 @@ def esm2_t30_150M_UR50D():
 
     Returns a tuple of (Model, Alphabet).
     """
-    model_path = "/home/fkli/RNAm/esm2_t30_150M_UR50D.pt"
+    model_path = "/lustre/home/fkli/RNAm/esm2_t30_150M_UR50D.pt"
     return load_model_and_alphabet_local(model_path)
 
 

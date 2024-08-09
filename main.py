@@ -25,8 +25,8 @@ from models.rna_model.config import (
 seed_everything(42)
 
 # Constants
-MODEL_PATH = "/home/fkli/RNAm"
-DATA_PATH = "/home/fkli/RNAdata/bpRNA_lasted/data"
+MODEL_PATH = "/lustre/home/fkli/RNAm"
+DATA_PATH = "/lustre/home/fkli/RNAdata/bpRNA_lasted/data"
 
 def parse_arguments():
     """Parse command line arguments."""
@@ -61,7 +61,6 @@ def parse_arguments():
     parser.add_argument("--epochs", type=int, default=10, help="Number of training epochs")
     parser.add_argument("--seed", type=int, default=1, help="Random seed")
     parser.add_argument("--device", type=str, default="cuda:0", help="Device to use for training")
-    parser.add_argument("--parallel", type=str, default=None, choices={"dp"}, help="Parallelization strategy")
     parser.add_argument("--resume", type=str, default=None, help="Path to resume checkpoint")
     parser.add_argument("--dry_run", action="store_true", default=False, help="Perform a dry run")
 
@@ -139,6 +138,7 @@ def main():
         esm_checkpoint=args.esm_conditioner_ckpt,
         device=args.device,
     )
+    model.to(args.device)
 
     # Create data loaders
     train_loader, val_loader, test_loader = create_data_loaders(args)

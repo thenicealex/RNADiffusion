@@ -1,7 +1,7 @@
 {
   "project_name": "evaluation",
-  "save_root_path": "/home/fkli/Projects/RNADiffusion/evaluation",
-  "model_ckpt_path": "/home/fkli/Projects/RNADiffusion/ckpt/finetune.seed.2024.pt",
+  "save_root_path": "/lustre/home/fkli/Projects/RNADiffusion/evaluation",
+  "model_ckpt_path": "/lustre/home/fkli/Projects/RNADiffusion/ckpt/finetune.seed.2024.pt",
   "seed": 1,
   "device": "cuda:7",
   "num_samples": 10,

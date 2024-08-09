@@ -19,7 +19,7 @@ from prettytable import PrettyTable
 HOME_PATH = os.getcwd()
 
 dataset_choices = ['RNAStrAlign', 'archiveII', 'bpRNA', 'bpRNAnew', 'pdbnew', 'TS_hard']
-DATA_ROOT_PATH = '/home/fkli/new_dataset/preprocess/'
+DATA_ROOT_PATH = '/lustre/home/fkli/new_dataset/preprocess/'
 
 
 def clean_dict(d, keys):

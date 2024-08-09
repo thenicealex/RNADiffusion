@@ -3,7 +3,7 @@ from typing import Tuple
 from dataclasses import dataclass
 
 
-model_path = "/home/fkli/RNAm"
+model_path = "/lustre/home/fkli/RNAm"
 model_name = "RNA-ESM2-trans-2a100-mappro-KDNY-epoch=06-valid_F1=0.564-v1.ckpt"
 
 @dataclass

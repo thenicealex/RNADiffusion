@@ -1,7 +1,7 @@
 {
   "project_name": "prediction",
-  "save_root_path": "/home/fkli/Projects/RNADiffusion/common/prediction",
-  "model_ckpt_path": "/home/fkli/Projects/RNADiffusion/ckpt/train.seed.2024.pt",
+  "save_root_path": "/lustre/home/fkli/Projects/RNADiffusion/common/prediction",
+  "model_ckpt_path": "/lustre/home/fkli/Projects/RNADiffusion/ckpt/train.seed.2024.pt",
 
   "device": 1,
   "seed": 2024,

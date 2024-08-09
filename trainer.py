@@ -2,6 +2,7 @@
 import os
 import sys
 import time
+from tqdm import tqdm
 import wandb
 import pickle
 import pathlib
@@ -23,7 +24,7 @@ from utils.loss import (
 )
 
 
-sys.path.append("/home/fkli/Projects/RNADiffusion")
+sys.path.append("/lustre/home/fkli/Projects/RNADiffusion")
 
 HOME = str(pathlib.Path.home())
 
@@ -117,7 +118,7 @@ class BaseTrainer(object):
     def test(self, epoch):
         raise NotImplementedError()
 
-    def log_fn(self, epoch, train_metrics, val_metrics, test_metrics):
+    def log_metrics(self, epoch, train_metrics, val_metrics, test_metrics):
         raise NotImplementedError()
 
     def log_train_metrics(self, train_metrics):
@@ -281,7 +282,7 @@ class BaseTrainer(object):
 
             # Log
             self.save_metrics()
-            self.log_fn(epoch, train_metrics, val_metrics, val_metrics)
+            self.log_metrics(epoch, train_metrics, val_metrics, val_metrics)
 
             # Checkpoint
             self.current_epoch += 1
@@ -462,45 +463,49 @@ class Trainer(DiffusionTrainer):
         total_samples = 0
         device = self.args.device
 
-        for _, (
-            set_max_len,
-            _,
-            raw_sequence,
-            sequence_length,
-            contact_map,
-            base_info,
-            sequence_encoding,
-        ) in enumerate(self.train_loader):
-            self.optimizer.zero_grad()
-            contact_map = contact_map.squeeze(0).to(device)
-            base_info = base_info.squeeze(0).to(device)
-            sequence_length = sequence_length.squeeze(0).to(device)
-            sequence_encoding = sequence_encoding.squeeze(0).to(device)
-            matrix_rep = torch.zeros_like(contact_map)
-            contact_masks = contact_map_masks(sequence_length, matrix_rep).to(device)
-
-            loss = self.model(
+        with tqdm(total=len(self.train_loader)) as t:
+            for _, (
+                set_max_len,
+                _,
+                raw_sequence,
+                sequence_length,
                 contact_map,
                 base_info,
-                raw_sequence,
-                contact_masks,
-                set_max_len,
                 sequence_encoding,
-            )
-            loss.backward()
-            self.optimizer.step()
-            if self.scheduler_iter:
-                self.scheduler_iter.step()
+            ) in enumerate(self.train_loader):
+                self.optimizer.zero_grad()
+                contact_map = contact_map.to(device)
+                base_info = base_info.to(device)
+                sequence_length = sequence_length.to(device)
+                sequence_encoding = sequence_encoding.to(device)
+                matrix_rep = torch.zeros_like(contact_map)
+                contact_masks = contact_map_masks(sequence_length, matrix_rep).to(device)
 
-            total_loss += loss.detach().cpu().item() * len(contact_map)
-            total_samples += len(contact_map)
-            print(
-                f"Training. Epoch: {epoch + 1}/{self.args.epochs}, Bits/dim: {total_loss / total_samples:.5f}\n"
-            )
+                loss = self.model(
+                    contact_map,
+                    base_info,
+                    raw_sequence,
+                    contact_masks,
+                    set_max_len,
+                    sequence_encoding,
+                )
+
+                loss.backward()
+                self.optimizer.step()
+                if self.scheduler_iter:
+                    self.scheduler_iter.step()
+
+                total_loss += loss.detach().cpu().item() * len(contact_map)
+                total_samples += len(contact_map)
+                avg_loss = round(total_loss / total_samples, 5)
+                t.set_description(desc=f"Training. Epoch: {epoch + 1}/{self.args.epochs}")
+                t.set_postfix({'loss': f"{avg_loss:.5f}"})
+                t.update(1)
+                # print( f"Training. Epoch: {epoch + 1}/{self.args.epochs}, Bits/dim: {total_loss / total_samples:.5f}\n")
 
         if self.scheduler_epoch:
             self.scheduler_epoch.step()
-        return {"bpd": total_loss / total_samples}
+        return {"bpd": avg_loss}
 
     def validation(self, epoch):
         self.model.eval()
@@ -521,10 +526,9 @@ class Trainer(DiffusionTrainer):
                 base_info,
                 sequence_encoding,
             ) in enumerate(self.val_loader):
-                contact_map = contact_map.squeeze(0)
-                base_info = base_info.squeeze(0).to(device)
-                sequence_length = sequence_length.squeeze(0).to(device)
-                sequence_encoding = sequence_encoding.squeeze(0).to(device)
+                base_info = base_info.to(device)
+                sequence_length = sequence_length.to(device)
+                sequence_encoding = sequence_encoding.to(device)
                 matrix_rep = torch.zeros_like(contact_map)
                 contact_masks = contact_map_masks(sequence_length, matrix_rep).to(
                     device
@@ -542,6 +546,7 @@ class Trainer(DiffusionTrainer):
                 )
 
                 pred_x0 = pred_x0.cpu().float()
+                # print("pred_x0 is ", pred_x0.shape, pred_x0)
                 total_loss += (
                     bce_loss(pred_x0.float(), contact_map.float()).cpu().item()
                 )
@@ -594,25 +599,23 @@ class Trainer(DiffusionTrainer):
 
         with torch.no_grad():
             for _, (
-                name_sequence,
+                set_max_len,
+                name_tensor,
                 raw_sequence,
                 sequence_length,
-                set_max_len,
                 contact_map,
                 base_info,
                 sequence_encoding,
             ) in enumerate(self.test_loader):
-                sequence_length = sequence_length.squeeze(0).to(device)
                 data_name_list = [
                     list(filter(lambda x: x != -1, item.numpy()))
-                    for item in name_sequence.squeeze(0)
+                    for item in name_tensor
                 ]
                 total_name_list += [decode_name(item) for item in data_name_list]
                 total_length_list += [item.item() for item in sequence_length]
 
-                contact_map = contact_map.squeeze(0)
-                base_info = base_info.squeeze(0).to(device)
-                data_seq_encoding = data_seq_encoding.squeeze(0).to(device)
+                base_info = base_info.to(device)
+                sequence_encoding = sequence_encoding.to(device)
                 matrix_rep = torch.zeros_like(contact_map)
                 contact_masks = contact_map_masks(sequence_length, matrix_rep).to(
                     device

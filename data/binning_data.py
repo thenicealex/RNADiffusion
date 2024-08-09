@@ -91,8 +91,8 @@ def save_binned_data(data_path, category, categorized_data, start, end):
     print(f"Data saved to {file_path} with {len(categorized_data)} sequences.")
 
 def main():
-    datasets_path = "/home/fkli/RNAdata/bpRNA_lasted.pkl"
-    data_path = "/home/fkli/RNAdata/bpRNA_lasted"
+    datasets_path = "/lustre/home/fkli/RNAdata/bpRNA_lasted.pkl"
+    data_path = "/lustre/home/fkli/RNAdata/bpRNA_lasted"
 
     with open(datasets_path, "rb") as f:
         datasets = pickle.load(f, encoding="bytes")

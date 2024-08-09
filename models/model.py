@@ -15,10 +15,6 @@ from models.rna_model.evo.tokenization import Vocab, mapdict
 CH_FOLD = 1
 
 
-def get_model_id(args):
-    return "DiT"
-
-
 class DiffusionRNA2dPrediction(nn.Module):
     def __init__(
         self,
@@ -50,6 +46,7 @@ class DiffusionRNA2dPrediction(nn.Module):
             num_channels=17,
             num_classes=1,
             cond_dim=self.cond_dim,
+            device=self.device,
             unet_checkpoint=self.unet_checkpoint,
         )
 
@@ -190,7 +187,7 @@ class RNAESM2(nn.Module):
 
 
 class RNAUNet(nn.Module):
-    def __init__(self, num_channels, num_classes, cond_dim, unet_checkpoint=None):
+    def __init__(self, num_channels, num_classes, cond_dim, device, unet_checkpoint=None):
         super(RNAUNet, self).__init__()
         self.num_channels = num_channels
         self.num_classes = num_classes
@@ -200,6 +197,7 @@ class RNAUNet(nn.Module):
             int(32 * CH_FOLD), self.cond_dim, kernel_size=1, stride=1, padding=0
         )
         self.model = UNet(self.num_channels, self.num_classes)
+        self.device = device
         self._initialize_model()
 
     def _initialize_model(self):
@@ -208,4 +206,5 @@ class RNAUNet(nn.Module):
         self.model.requires_grad_(True)
 
     def forward(self, x):
+        self.model.to(self.device)
         return self.model(x)

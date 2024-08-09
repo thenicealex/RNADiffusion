@@ -48,10 +48,10 @@ def process_data(source_dir, target_dir):
             print(f"Written {target_path}")
 
 if __name__ == "__main__":
-    train_data_path = "/home/fkli/RNAdata/bpRNA_lasted/binning/train"
-    test_data_path = "/home/fkli/RNAdata/bpRNA_lasted/binning/test"
-    val_data_path = "/home/fkli/RNAdata/bpRNA_lasted/binning/val"
-    target_data_path = "/home/fkli/RNAdata/bpRNA_lasted/batching"
+    train_data_path = "/lustre/home/fkli/RNAdata/bpRNA_lasted/binning/train"
+    test_data_path = "/lustre/home/fkli/RNAdata/bpRNA_lasted/binning/test"
+    val_data_path = "/lustre/home/fkli/RNAdata/bpRNA_lasted/binning/val"
+    target_data_path = "/lustre/home/fkli/RNAdata/bpRNA_lasted/batching"
     
     data_paths = [train_data_path, val_data_path, test_data_path]
     

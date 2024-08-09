@@ -11,7 +11,7 @@ from utils.data import padding
 from data.data_generator import RNADataset
 from torch.utils.data import DataLoader
 
-train_data_path = "/home/fkli/RNAdata/bpRNA_lasted/batching/train"
+train_data_path = "/lustre/home/fkli/RNAdata/bpRNA_lasted/batching/train"
 
 
 if __name__ == "__main__":
