@@ -88,6 +88,7 @@ def create_data_loaders(args):
         shuffle=True,
         num_workers=args.num_workers,
         pin_memory=args.pin_memory,
+        collate_fn=train_dataset.collate_fn,
         drop_last=True,
     )
 
@@ -97,6 +98,7 @@ def create_data_loaders(args):
         shuffle=False,
         num_workers=args.num_workers,
         pin_memory=args.pin_memory,
+        collate_fn=val_dataset.collate_fn,
         drop_last=False,
     )
 
@@ -106,6 +108,7 @@ def create_data_loaders(args):
         shuffle=False,
         num_workers=args.num_workers,
         pin_memory=args.pin_memory,
+        collate_fn=test_dataset.collate_fn,
         drop_last=False,
     )
 
@@ -131,9 +134,9 @@ def main():
         diffusion_dim=args.diffusion_dim,
         cond_dim=args.cond_dim,
         diffusion_steps=args.diffusion_steps,
-        dp_rate=args.dp_rate,
-        u_ckpt=args.u_conditioner_ckpt,
-        esm_ckpt=args.esm_conditioner_ckpt,
+        dropout_rate=args.dp_rate,
+        unet_checkpoint=args.u_conditioner_ckpt,
+        esm_checkpoint=args.esm_conditioner_ckpt,
         device=args.device,
     )
 

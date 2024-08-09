@@ -43,7 +43,7 @@ class RNADataset(Dataset):
             for fname in sorted(fnames):
                 if fname.endswith((".cPickle", ".pickle", ".pkl", ".js", ".json")):
                     instances.append(os.path.join(root, fname))
-        return instances
+        return instances[:1]
 
     def _upsample_data(self, samples: List[str]) -> List[str]:
         augment_data_list = []

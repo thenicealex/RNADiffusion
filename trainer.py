@@ -463,10 +463,10 @@ class Trainer(DiffusionTrainer):
         device = self.args.device
 
         for _, (
+            set_max_len,
             _,
             raw_sequence,
             sequence_length,
-            set_max_len,
             contact_map,
             base_info,
             sequence_encoding,
@@ -513,10 +513,10 @@ class Trainer(DiffusionTrainer):
         mcc_scores = []
         with torch.no_grad():
             for _, (
+                set_max_len,
                 _,
                 raw_sequence,
                 sequence_length,
-                set_max_len,
                 contact_map,
                 base_info,
                 sequence_encoding,
@@ -594,7 +594,7 @@ class Trainer(DiffusionTrainer):
 
         with torch.no_grad():
             for _, (
-                data_name,
+                name_sequence,
                 raw_sequence,
                 sequence_length,
                 set_max_len,
@@ -605,7 +605,7 @@ class Trainer(DiffusionTrainer):
                 sequence_length = sequence_length.squeeze(0).to(device)
                 data_name_list = [
                     list(filter(lambda x: x != -1, item.numpy()))
-                    for item in data_name.squeeze(0)
+                    for item in name_sequence.squeeze(0)
                 ]
                 total_name_list += [decode_name(item) for item in data_name_list]
                 total_length_list += [item.item() for item in sequence_length]
@@ -645,7 +645,7 @@ class Trainer(DiffusionTrainer):
                     "name": total_name_list,
                     "length": total_length_list,
                     "accuracy": list(np.array(accuracy)),
-                    "precision": list(np.array(precison)),
+                    "precision": list(np.array(precision)),
                     "recall": list(np.array(recall)),
                     "sensitivity": list(np.array(sens)),
                     "specificity": list(np.array(spec)),

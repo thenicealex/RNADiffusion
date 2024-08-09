@@ -9,12 +9,12 @@ def load_data(file_path):
         return pickle.load(file)
 
 def get_batch_size(sequence_length):
-    if sequence_length == 80:
-        return 128
-    elif sequence_length == 160:
-        return 64
-    elif 160 < sequence_length <= 320:
+    if sequence_length <= 80:
+        return 32
+    elif 80 <= sequence_length <= 160:
         return 16
+    elif 160 < sequence_length <= 320:
+        return 8
     elif 320 < sequence_length <= 640:
         return 4
     elif 640 < sequence_length <= 1280:

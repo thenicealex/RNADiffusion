@@ -14,11 +14,23 @@ from models.rna_model.evo.tokenization import Vocab, mapdict
 
 CH_FOLD = 1
 
+
 def get_model_id(args):
     return "DiT"
 
+
 class DiffusionRNA2dPrediction(nn.Module):
-    def __init__(self, num_classes, diffusion_dim, cond_dim, diffusion_steps, dropout_rate, unet_checkpoint, esm_checkpoint, device):
+    def __init__(
+        self,
+        num_classes,
+        diffusion_dim,
+        cond_dim,
+        diffusion_steps,
+        dropout_rate,
+        unet_checkpoint,
+        esm_checkpoint,
+        device,
+    ):
         super(DiffusionRNA2dPrediction, self).__init__()
 
         self.num_classes = num_classes
@@ -31,8 +43,15 @@ class DiffusionRNA2dPrediction(nn.Module):
         self.device = device
 
         # Initialize conditioners
-        self.esm_conditioner = RNAESM2(esm_checkpoint=self.esm_checkpoint, device=self.device)
-        self.unet_conditioner = RNAUNet(num_channels=17, num_classes=1, cond_dim=self.cond_dim, unet_checkpoint=self.unet_checkpoint)
+        self.esm_conditioner = RNAESM2(
+            esm_checkpoint=self.esm_checkpoint, device=self.device
+        )
+        self.unet_conditioner = RNAUNet(
+            num_channels=17,
+            num_classes=1,
+            cond_dim=self.cond_dim,
+            unet_checkpoint=self.unet_checkpoint,
+        )
 
         # Initialize denoise layer
         self.denoise_layer = SegmentationUnet2DCondition(
@@ -45,33 +64,58 @@ class DiffusionRNA2dPrediction(nn.Module):
         )
 
         # Initialize diffusion process
-        self.diffusion = MultinomialDiffusion(self.num_classes, self.diffusion_steps, self.denoise_layer)
+        self.diffusion = MultinomialDiffusion(
+            self.num_classes, self.diffusion_steps, self.denoise_layer
+        )
 
-    def forward(self, x_0, base_info, data_seq_raw, contact_masks, max_len, data_seq_encoding):
+    def forward(
+        self, x_0, base_info, data_seq_raw, contact_masks, max_len, data_seq_encoding
+    ):
         esm_condition = self.esm_conditioner(data_seq_raw, max_len)
         unet_condition = self.unet_conditioner(base_info)
 
-        loss = self.diffusion(x_0, esm_condition, unet_condition, contact_masks, data_seq_encoding)
+        loss = self.diffusion(
+            x_0, esm_condition, unet_condition, contact_masks, data_seq_encoding
+        )
         log_likelihood_bpd = -loss.sum() / (math.log(2) * x_0.numel())
         return log_likelihood_bpd
 
     @torch.no_grad()
-    def sample(self, num_samples, base_info, data_seq_raw, max_len, contact_masks, seq_encoding):
+    def sample(
+        self, num_samples, base_info, data_seq_raw, max_len, contact_masks, seq_encoding
+    ):
         esm_condition = self.esm_conditioner(data_seq_raw, max_len)
         unet_condition = self.unet_conditioner(base_info)
 
-        pred_x_0, model_prob = self.diffusion.sample(num_samples, esm_condition, unet_condition, contact_masks, max_len, seq_encoding)
+        pred_x_0, model_prob = self.diffusion.sample(
+            num_samples,
+            esm_condition,
+            unet_condition,
+            contact_masks,
+            max_len,
+            seq_encoding,
+        )
         return pred_x_0, model_prob
 
     @torch.no_grad()
-    def sample_chain(self, num_samples, base_info, data_seq_raw, max_len, contact_masks, seq_encoding):
+    def sample_chain(
+        self, num_samples, base_info, data_seq_raw, max_len, contact_masks, seq_encoding
+    ):
         esm_condition = self.esm_conditioner(data_seq_raw, max_len)
         unet_condition = self.unet_conditioner(base_info)
 
-        pred_x_0_chain, model_prob_chain, pred_x_0, model_prob = self.diffusion.sample_chain(
-            num_samples, esm_condition, unet_condition, contact_masks, max_len, seq_encoding
+        pred_x_0_chain, model_prob_chain, pred_x_0, model_prob = (
+            self.diffusion.sample_chain(
+                num_samples,
+                esm_condition,
+                unet_condition,
+                contact_masks,
+                max_len,
+                seq_encoding,
+            )
         )
         return pred_x_0_chain, model_prob_chain, pred_x_0, model_prob
+
 
 class RNAESM2(nn.Module):
     def __init__(self, esm_checkpoint, device="cuda:0"):
@@ -97,7 +141,10 @@ class RNAESM2(nn.Module):
             token_dropout=True,
         )
         print(f"Loading RNA-ESM2 model: {self.esm_checkpoint}")
-        model.load_state_dict(torch.load(self.esm_checkpoint, map_location="cpu")["state_dict"], strict=True)
+        model.load_state_dict(
+            torch.load(self.esm_checkpoint, map_location="cpu")["state_dict"],
+            strict=True,
+        )
         return model, rna_map_vocab, rna_alphabet
 
     def forward(self, data_seq_raw, max_len=80):
@@ -107,19 +154,28 @@ class RNAESM2(nn.Module):
         output = {}
         with torch.no_grad():
             tokens = torch.from_numpy(self.rna_map_vocab.encode(data_seq_raw))
-            infer = self.model(tokens.to(self.device), repr_layers=[30], return_contacts=True)
+            infer = self.model(
+                tokens.to(self.device), repr_layers=[30], return_contacts=True
+            )
             embedding = infer["representations"][30]
 
             attention = infer["attentions"]
             b, l, n, l1, l2 = attention.shape
             attention = attention.reshape(b, l * n, l1, l2)[:, :, 1:-1, 1:-1]
-            padding_size = (0, max_len - attention.shape[-2], 0, max_len - attention.shape[-1])
+            padding_size = (
+                0,
+                max_len - attention.shape[-2],
+                0,
+                max_len - attention.shape[-1],
+            )
             attention = F.pad(attention, padding_size, "constant", value=0)
 
             start_idx = int(self.rna_map_vocab.prepend_bos)
             end_idx = embedding.size(-2) - int(self.rna_map_vocab.append_eos)
             embedding = embedding[:, start_idx:end_idx, :]
-            embedding_pad = torch.zeros(embedding.shape[0], max_len - embedding.shape[1], embedding.shape[2]).to(self.device)
+            embedding_pad = torch.zeros(
+                embedding.shape[0], max_len - embedding.shape[1], embedding.shape[2]
+            ).to(self.device)
             embedding = torch.cat([embedding, embedding_pad], dim=1)
 
             try:
@@ -132,6 +188,7 @@ class RNAESM2(nn.Module):
 
         return output
 
+
 class RNAUNet(nn.Module):
     def __init__(self, num_channels, num_classes, cond_dim, unet_checkpoint=None):
         super(RNAUNet, self).__init__()
@@ -139,7 +196,9 @@ class RNAUNet(nn.Module):
         self.num_classes = num_classes
         self.cond_dim = cond_dim
         self.unet_checkpoint = unet_checkpoint
-        self.conv_layer = nn.Conv2d(int(32 * CH_FOLD), self.cond_dim, kernel_size=1, stride=1, padding=0)
+        self.conv_layer = nn.Conv2d(
+            int(32 * CH_FOLD), self.cond_dim, kernel_size=1, stride=1, padding=0
+        )
         self.model = UNet(self.num_channels, self.num_classes)
         self._initialize_model()
 

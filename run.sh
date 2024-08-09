@@ -9,6 +9,7 @@ python main.py  --device cuda:0 \
                 --dp_rate 0.1 \
                 --lr 0.0001 \
                 --warmup 5 \
+                --upsampling False \
                 --seed 2024 \
                 --epochs 3 \
                 --eval_every 1 \

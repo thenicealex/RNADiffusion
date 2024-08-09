@@ -72,9 +72,9 @@ def contact_map_masks(data_lens, matrix_rep):
     assert matrix_rep.shape[0] == n_seq
     
     # Convert data_lens to a NumPy array
-    lengths = np.array([int(l.cpu().numpy()) for l in data_lens])
+    lengths = [int(l.cpu().numpy()) for l in data_lens]
     
-    for i, l in range(lengths):
+    for i, l in enumerate(lengths):
         matrix_rep[i, :l, :l] = 1
         
     return matrix_rep
