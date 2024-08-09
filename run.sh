@@ -14,6 +14,5 @@ python main.py  --device cuda:0 \
                 --epochs 50 \
                 --eval_every 1 \
                 --dry_run \
-                --log_wandb False \
                 --u_conditioner_ckpt $UNETPATH \
                 --esm_conditioner_ckpt $ESM2PATH \

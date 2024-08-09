@@ -70,7 +70,7 @@ def parse_arguments():
     parser.add_argument("--eval_every", type=int, default=None, help="Evaluation frequency")
     parser.add_argument("--check_every", type=int, default=None, help="Checkpoint frequency")
     parser.add_argument("--log_tb", type=eval, default=True, help="Log to TensorBoard")
-    parser.add_argument("--log_wandb", type=eval, default=True, help="Log to Weights & Biases")
+    parser.add_argument("--log_wandb", type=eval, default=False, help="Log to Weights & Biases")
     parser.add_argument("--log_home", type=str, default=None, help="Logging directory")
 
     return parser.parse_args()
